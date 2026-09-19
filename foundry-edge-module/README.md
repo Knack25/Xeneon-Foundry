@@ -4,11 +4,19 @@ Targets Foundry 14 / D&D 5e 5.3.3. Live operation is not verified yet. There is 
 
 ## Build and install into a test world
 
-1. With Node 24+, run `npm test` and `npm run build` here.
+1. With Node 24+ and Python 3.9+, run `npm test` and `npm run build` here.
 2. Copy the contents of `dist/` to `<Foundry user data>/Data/modules/foundry-edge/`, so `module.json` sits directly in that directory. Restart Foundry if needed to discover it.
 3. Enable **Foundry Edge — Compatibility Probe** in a disposable/test world using D&D 5e 5.3.3.
 4. Create a dedicated service user and give it ownership of a disposable PC. Give a separate test player ownership of the same PC. Start with the least privileged role supporting character updates and chat rolls.
 5. As a GM, set **Connector service user ID** in module settings to that service user's ID. Reload and log into a separate browser as the service user. This is a different account from normal players.
+
+To create a portable ZIP, run from the repository root:
+
+```powershell
+python scripts/package-foundry-probe.py foundry-edge-module/dist dist/foundry-probe/foundry-edge-module-0.1.0-probe.zip
+```
+
+On Linux use `python3`. This packager writes forward-slash archive paths; do not use Windows PowerShell `Compress-Archive` for the Linux deployment because it can produce backslash member names.
 
 ## Test in the service browser console
 

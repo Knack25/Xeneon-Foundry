@@ -33,7 +33,7 @@
 
 ## Execution strategy and file ownership
 
-Execution status (2026-09-19): local portions of Tasks 1-2 implemented and reviewed; 21 new tests pass. Live Foundry/iCUE checkpoint remains open. The user supplied a Foundry hostname but SSH is not configured and that hostname did not resolve from this PC. Tasks 3-8 have not started. Detailed evidence: `docs/foundry/compatibility-14-5.3.3.md`.
+Execution status (2026-09-19): local portions of Tasks 1-2 implemented and reviewed; 21 new tests pass. SSH now works and the module probe is staged without activation. The user requested a separate Xeneon Edge Test world; its creation/launch through authenticated setup is the next live checkpoint. Tasks 3-8 have not started. Detailed evidence: `docs/foundry/compatibility-14-5.3.3.md`.
 
 Execute sequentially because transport contracts, adapter behavior, and the widget depend on each other. Tasks 1-4 build a small working connection before Tasks 5-7 expand it. Task 8 validates packaging and live operation. Do not claim a complete release without the live gates.
 
