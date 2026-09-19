@@ -15,7 +15,7 @@ function fixture({roleMode = 'public', generation = 14, version = '5.3.3'} = {})
   const pc = {id:'pc',name:'Tharivol',type:'character',img:'actors/portrait.webp',isToken:false,pack:null,
     testUserPermission:user => user.id === 'service' || (user.id === 'player' && owned),
     system:{attributes:{hp:{value:12,max:20,temp:4},ac:{value:15},movement:{walk:30,units:'ft'}},
-      abilities:{wis:{value:16,mod:3,save:3}}, skills:{prc:{total:5,passive:15,ability:'wis'}},
+      abilities:{wis:{value:16,mod:3,save:{value:3}}}, skills:{prc:{total:5,passive:15,ability:'wis'}},
       resources:{primary:{label:'Ki',value:2,max:3}},spells:{spell1:{value:2,max:3}}},
     items:[{id:'item1',name:'Quarterstaff',type:'weapon',system:{quantity:1,description:{value:'<p>A staff</p>'}}}],
     async applyDamage(value,options){effects.push({kind:'damage',value,options});},
@@ -53,6 +53,11 @@ test('snapshot projects data rather than serializing complete Foundry documents'
   assert.equal(snapshot.portraitRef,null); // protected image delivery is a later connector capability
   assert.equal(JSON.stringify(snapshot).includes('not-for-clients'),false);
   assert.equal(snapshot.capabilities.includes('actor.update'),false);
+});
+
+test('D&D 5.3.3 saving throw modifiers use the derived save.value field',()=>{
+  const {adapter,pc}=fixture();pc.system.abilities.wis.save={value:5,roll:{mode:0}};
+  assert.equal(adapter.readCharacter('player','pc',scope).abilities.wis.save,5);
 });
 
 test('roll dispatch uses native method, no dialog, character speaker, and service author', async () => {

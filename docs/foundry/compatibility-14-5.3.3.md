@@ -1,8 +1,20 @@
 # Foundry Edge compatibility record
 
-Status: local compatibility foundation tested; SSH and VPS installation paths verified. Probe staged without activation. No live character-action or iCUE results yet.
+Status: live test-world character actions and the local web preview are verified. Standalone VPS deployment and physical iCUE compatibility remain pending.
 
-## Verified locally
+## Latest live evidence — 2026-09-19
+
+The user enabled the module in `xeneon-edge-test` and authorized disposable fixtures there. Created Edge Service (Trusted Player), Edge Test Player, and Edge Test Hero through native Foundry document APIs. Runtime reports Foundry 14.367 / D&D 5e 5.3.3. No campaign characters were changed.
+
+The headless service browser successfully read the owned PC, set temporary HP to 4, applied 5 damage (HP 15→14, temp 4→0), and healed to the maximum of 20. Native skill, ability-check and saving-throw calls completed with public messages, character speaker, service author and requesting-player attribution. A private configured roll mode was rejected. Restored the hero to HP 15, temp 0.
+
+The local web preview at `http://127.0.0.1:8791` passed pairing, reload persistence, temp HP 0→3→0, and a native skill roll. No horizontal overflow at 1100×650 and no JavaScript errors. The live actor data confirmed saving throw modifiers are `abilities.*.save.value`; projection was corrected with a failing-then-passing regression.
+
+Current automated suite: **37 passing tests**, plus the browser regression for immediate sheet clearing after ownership loss. Independent review found queued remapping and stale DOM exposure; both were reproduced by failing tests and fixed. See [live preview instructions](live-web-preview.md).
+
+Still unverified: physical Large/XL iCUE storage/permissions/touch behavior, two-device and world-switch end-to-end matrix, VPS browser supervision and memory use, protected portraits, and complete deployment/admin UI. Browser preview uses local storage and authenticated polling; it is not evidence of physical iCUE compatibility.
+
+## Initial probe evidence (historical)
 
 - Shared action validation rejects unknown actions, injected player IDs, invalid scope and unsafe HP values.
 - Adapter boundary tests cover owned-PC filtering, stale worlds, native HP call direction, checks/saves/skills, public-only rolls, service author preservation, and cancelled rolls.
@@ -32,7 +44,7 @@ Sources:
 - https://raw.githubusercontent.com/foundryvtt/dnd5e/release-5.3.3/module/data/item/spell.mjs
 - https://foundryvtt.com/api/classes/foundry.documents.ChatMessage.html
 
-## Live checkpoint — awaiting dedicated test-world launch
+## Initial staging history — superseded by the live results above
 
 Needed next: dedicated test world launched through Foundry's administrative setup, then a dedicated service account and test player/PC. Do not put credentials in this file or in chat.
 

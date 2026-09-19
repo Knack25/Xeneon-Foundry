@@ -3,14 +3,16 @@ import { appendAttribution } from './chat.js';
 import { failure } from './protocol.js';
 
 const ID = 'foundry-edge';
-export function registerModule({Hooks,game,makeId = () => crypto.randomUUID()}) {
+export function registerModule({Hooks,game:initialGame,getGame = () => initialGame,makeId = () => crypto.randomUUID()}) {
   Hooks.once('init', () => {
+    const game = getGame();
     game.settings.register(ID,'serviceUserId',{name:'Connector service user ID',
       hint:'Use the ID of a dedicated service account. Leave blank to disable the probe API.',
       scope:'world',config:true,type:String,default:'',requiresReload:true});
   });
   Hooks.on('renderChatMessageHTML',appendAttribution);
   Hooks.once('ready', () => {
+    const game = getGame();
     if (!game.settings.get(ID,'serviceUserId') || game.user.id !== game.settings.get(ID,'serviceUserId')) return;
     const scope = Object.freeze({instanceId:'local-probe',worldId:game.world.id,generation:makeId()});
     const adapter = createAdapter({game,getScope:()=>scope,
@@ -31,4 +33,5 @@ export function registerModule({Hooks,game,makeId = () => crypto.randomUUID()}) 
   });
 }
 
-if (globalThis.Hooks && globalThis.game) registerModule({Hooks:globalThis.Hooks,game:globalThis.game});
+// Foundry exposes Hooks before constructing game. Resolve game only inside lifecycle callbacks.
+if (typeof Hooks !== 'undefined') registerModule({Hooks,getGame:() => game});

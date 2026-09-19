@@ -33,7 +33,7 @@
 
 ## Execution strategy and file ownership
 
-Execution status (2026-09-19): local portions of Tasks 1-2 implemented and reviewed; 21 new tests pass. SSH now works and the module probe is staged without activation. The user requested a separate Xeneon Edge Test world; its creation/launch through authenticated setup is the next live checkpoint. Tasks 3-8 have not started. Detailed evidence: `docs/foundry/compatibility-14-5.3.3.md`.
+Execution status (2026-09-19): live native actions verified in Xeneon Edge Test. User does not yet have the physical Edge and requested a live web preview. Partial Tasks 2-7 now provide local supervised service login, durable pairing/requests, admin API, authorized polling and interactive preview. 37 automated tests and live browser smoke checks pass. The full admin UI, VPS deployment, protected assets, complete acceptance matrix and physical iCUE checks remain pending. Detailed evidence: `docs/foundry/compatibility-14-5.3.3.md` and `docs/foundry/live-web-preview.md`.
 
 Execute sequentially because transport contracts, adapter behavior, and the widget depend on each other. Tasks 1-4 build a small working connection before Tasks 5-7 expand it. Task 8 validates packaging and live operation. Do not claim a complete release without the live gates.
 

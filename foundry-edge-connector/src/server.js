@@ -1,15 +1,78 @@
 import { createServer as createHttpServer } from 'node:http';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
-import { PROTOCOL_VERSION } from './protocol.js';
+import { PROTOCOL_VERSION,failure,sameScope,validateConnectorUrl } from './protocol.js';
+import {AdminAuth} from './auth.js';
+
+async function body(request){
+ if(!request.headers['content-type']?.startsWith('application/json'))throw failure('invalid-body','JSON is required.');
+ let size=0;const chunks=[];
+ for await(const chunk of request){size+=chunk.length;if(size>16384)throw failure('invalid-body','Request is too large.');chunks.push(chunk);}
+ try{const value=JSON.parse(Buffer.concat(chunks));if(!value||typeof value!=='object'||Array.isArray(value))throw Error();return value;}
+ catch{throw failure('invalid-body','Invalid JSON request.');}
+}
+
+function apiHandler({store,bridge,adminSecret,publicUrl,coordinator}){
+ const auth=new AdminAuth(adminSecret,new URL(validateConnectorUrl(publicUrl)).origin);
+ async function mapping(value){
+  if(!sameScope(value.scope,bridge.scope)||!(await bridge.listPlayers()).some(p=>p.id===value.userId))
+   throw failure('invalid-mapping','Select a player in the connected world.');
+  if(!sameScope(value.scope,bridge.scope))throw failure('invalid-mapping','The world changed. Refresh administration.');
+ }
+ return async(request,response)=>{
+  const route=request.url,method=request.method;
+  if(route.startsWith('/v1/')){
+   response.setHeader('Access-Control-Allow-Origin','*');
+   response.setHeader('Access-Control-Allow-Headers','Authorization, Content-Type');
+   response.setHeader('Access-Control-Allow-Methods','GET, POST, OPTIONS');
+   if(method==='OPTIONS'){response.writeHead(204);response.end();return;}
+  }
+  let result;
+  if(route==='/admin/login'&&method==='POST')result=auth.login((await body(request)).secret,request,response);
+  else if(route.startsWith('/admin/')){
+   auth.require(request);
+   if(route==='/admin/state'&&method==='GET')result={scope:bridge.scope,players:bridge.scope?await bridge.listPlayers():[],devices:store.listDevices()};
+   else if(route==='/admin/invites'&&method==='POST'){const value=await body(request);await mapping(value);result={code:store.createInvite(value)};}
+   else if(route==='/admin/mappings'&&method==='POST'){const value=await body(request);await mapping(value);store.setMapping(value.deviceId,value.scope,value.userId);result={ok:true};}
+   else if(route==='/admin/revoke'&&method==='POST'){store.revokeDevice((await body(request)).deviceId);result={ok:true};}
+  }else if(route==='/v1/pair'&&method==='POST'){
+   // Socket address only: forwarded headers cannot bypass the limit.
+   auth.limit('pair:'+request.socket.remoteAddress);result=store.redeemInvite((await body(request)).code);
+  }else if(route.startsWith('/v1/')){
+   const match=/^Bearer ([A-Za-z0-9_-]{43})$/.exec(request.headers.authorization??'');
+   const device=store.authenticateDevice(match?.[1]);
+   if(route==='/v1/world'&&method==='GET'){
+    const scope=bridge.scope;const userId=scope?store.resolveUser(device.deviceId,scope):null;
+    result={scope,userId,status:scope?'connected':'offline'};
+   }else if((route==='/v1/characters'||/^\/v1\/characters\/[\w-]{1,128}$/.test(route))&&method==='GET'){
+    const scope=bridge.scope,userId=store.resolveUser(device.deviceId,scope);
+    const value=route==='/v1/characters'?await bridge.listCharacters(userId):await bridge.readCharacter(userId,route.slice(15));
+    if(!sameScope(scope,bridge.scope)||store.resolveUser(device.deviceId,scope)!==userId)throw failure('forbidden','Access changed. Refresh the character list.');
+    result=route==='/v1/characters'?{scope,characters:value}:value;
+   }else if(route==='/v1/commands'&&method==='POST'&&coordinator)result=await coordinator.dispatch(device.deviceId,await body(request));
+   else if(route.startsWith('/v1/requests/')&&method==='GET'&&coordinator)result=coordinator.getRequest(device.deviceId,route.slice(13));
+  }
+  if(result===undefined)throw failure('not-found','Endpoint not found.');
+  response.end(JSON.stringify(result));
+ };
+}
 
 // Deliberately diagnostic-only: no Foundry data, login or command endpoints yet.
-export function createServer() {
-  return createHttpServer((request,response) => {
+export function createServer(config) {
+  const api=config?apiHandler(config):null;
+  const server=createHttpServer(async(request,response) => {
     response.setHeader('Content-Type','application/json');
     response.setHeader('Cache-Control','no-store');
     response.setHeader('X-Content-Type-Options','nosniff');
     if (request.url !== '/health') {
+      if(api){
+        try{await api(request,response);}catch(error){
+          const codes={'unauthorized':401,'forbidden':403,'rate-limited':429,'not-found':404,'request-not-found':404,'no-mapping':403,'stale-world':409,'request-conflict':409,'busy':429,'invalid-body':400,'invalid-mapping':400,'invalid-invite':400,'invalid-command':400};
+          const status=codes[error.code]??503;
+          response.writeHead(status);response.end(JSON.stringify({error:{code:status===503?'unavailable':error.code,message:status===503?'Connector is unavailable. Try again shortly.':error.message}}));
+        }
+        return;
+      }
       response.writeHead(404);
       response.end(JSON.stringify({error:{code:'not-found',message:'This diagnostic exposes only /health.'}}));
       return;
@@ -24,6 +87,8 @@ export function createServer() {
     }
     response.end(JSON.stringify({service:'foundry-edge-connector',protocol:PROTOCOL_VERSION,status:'diagnostic'}));
   });
+  server.requestTimeout=15000;server.headersTimeout=10000;
+  return server;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {

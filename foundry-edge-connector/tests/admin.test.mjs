@@ -1,0 +1,38 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {Store} from '../src/store.js';
+import {createServer} from '../src/server.js';
+const scope={instanceId:'i',worldId:'w',generation:'g'};
+test('admin requires login, CSRF and valid active-world player; devices cannot administer',async()=>{
+ const store=new Store(':memory:');
+ const server=createServer({store,adminSecret:'a'.repeat(40),publicUrl:'https://edge.example',bridge:{scope,listPlayers:async()=>[{id:'p',name:'Player'}]}});
+ await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ const url=`http://127.0.0.1:${server.address().port}`;
+ const post=(path,body,headers={})=>fetch(url+path,{method:'POST',headers:{'Content-Type':'application/json',Origin:'https://edge.example',...headers},body:JSON.stringify(body)});
+ try{
+  assert.equal((await post('/admin/invites',{scope,userId:'p'})).status,401);
+  const login=await post('/admin/login',{secret:'a'.repeat(40)});assert.equal(login.status,200);
+  const cookie=login.headers.get('set-cookie');assert.match(cookie,/HttpOnly/);assert.match(cookie,/Secure/);assert.match(cookie,/SameSite=Strict/);
+  const {csrf}=await login.json();const headers={Cookie:cookie.split(';')[0],'X-CSRF-Token':csrf};
+  assert.equal((await post('/admin/invites',{scope,userId:'p'},{Cookie:headers.Cookie})).status,403);
+  assert.equal((await post('/admin/invites',{scope,userId:'missing'},headers)).status,400);
+  assert.equal((await post('/admin/invites',{scope,userId:'p'},{...headers,Origin:'https://evil.example'})).status,403);
+  const invite=await post('/admin/invites',{scope,userId:'p'},headers);assert.equal(invite.status,200);
+  const {code}=await invite.json();const paired=await post('/v1/pair',{code});assert.equal(paired.status,200);
+  const {token,deviceId}=await paired.json();
+  assert.equal((await post('/admin/invites',{scope,userId:'p'},{Authorization:`Bearer ${token}`})).status,401);
+  const world=()=>fetch(url+'/v1/world',{headers:{Authorization:`Bearer ${token}`}});
+  assert.equal((await world()).status,200);
+  assert.equal((await post('/admin/revoke',{deviceId},headers)).status,200);
+  assert.equal((await world()).status,401);
+ }finally{await new Promise(r=>server.close(r));store.close();}
+});
+test('pairing is rate limited and errors never contain internal details',async()=>{
+ const store=new Store(':memory:');const server=createServer({store,adminSecret:'x'.repeat(40),publicUrl:'https://edge.example',bridge:{scope}});
+ await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ try{
+  const url=`http://127.0.0.1:${server.address().port}/v1/pair`;
+  for(let i=0;i<5;i++)assert.equal((await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','X-Forwarded-For':`fake-${i}`},body:'{"code":"bad"}'})).status,400);
+  assert.equal((await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:'{"code":"bad"}'})).status,429);
+ }finally{await new Promise(r=>server.close(r));store.close();}
+});

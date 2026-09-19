@@ -51,3 +51,22 @@ test('only explicitly designated service user receives a probe API', () => {
   assert.equal(typeof module.api.listCharacters,'function');
   assert.equal(module.api.scope.worldId,'test-world');
 });
+
+test('module registers hooks before game exists and resolves game during init', async () => {
+  const previousHooks=globalThis.Hooks;
+  const previousGame=globalThis.game;
+  const handlers=new Map();
+  try {
+    globalThis.Hooks={once:(name,fn)=>handlers.set(name,fn),on:()=>{}};
+    delete globalThis.game;
+    await import(`../scripts/main.js?late-game=${Date.now()}`);
+    assert.equal(typeof handlers.get('init'),'function');
+    const registered=[];
+    globalThis.game={settings:{register:(ns,key)=>registered.push(`${ns}.${key}`)}};
+    handlers.get('init')();
+    assert.deepEqual(registered,['foundry-edge.serviceUserId']);
+  } finally {
+    if(previousHooks===undefined)delete globalThis.Hooks;else globalThis.Hooks=previousHooks;
+    if(previousGame===undefined)delete globalThis.game;else globalThis.game=previousGame;
+  }
+});

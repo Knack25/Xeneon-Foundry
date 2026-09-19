@@ -34,7 +34,7 @@ export function createAdapter({game, getScope, getRollMode}) {
       hp:{value:number(data.attributes?.hp?.value),max:number(data.attributes?.hp?.max),temp:number(data.attributes?.hp?.temp) ?? 0},
       ac:number(data.attributes?.ac?.value),
       speed:mapValues(data.attributes?.movement, value => typeof value === 'number' ? number(value) : text(value)),
-      abilities:mapValues(data.abilities, value => ({value:number(value.value),mod:number(value.mod),save:number(value.save)})),
+      abilities:mapValues(data.abilities, value => ({value:number(value.value),mod:number(value.mod),save:number(value.save?.value)})),
       skills:mapValues(data.skills, value => ({total:number(value.total),passive:number(value.passive),ability:text(value.ability)})),
       resources:mapValues(data.resources, value => ({label:text(value.label),value:number(value.value),max:number(value.max)})),
       spellSlots:mapValues(data.spells, value => ({value:number(value.value),max:number(value.max)})),
