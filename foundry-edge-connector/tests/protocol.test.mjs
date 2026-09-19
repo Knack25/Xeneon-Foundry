@@ -1,0 +1,56 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { sameScope, validateCommand, validateConnectorUrl } from '../src/protocol.js';
+
+const scope = { instanceId: 'server', worldId: 'campaign', generation: 'connection-1' };
+const command = (operation = 'hp.adjust', input = { amount: -5 }) => ({
+  requestId: 'request-1', scope: { ...scope }, actorId: 'actor-1', operation, input
+});
+
+test('scope rejects cross-world, cross-server, stale generation and incomplete identities', () => {
+  assert.equal(sameScope(scope, { ...scope }), true);
+  for (const key of Object.keys(scope)) assert.equal(sameScope(scope, { ...scope, [key]: 'different' }), false);
+  for (const value of [null, {}, {worldId: 'campaign'}]) assert.equal(sameScope(value, value), false);
+});
+
+test('accepts only the supported explicit actions and returns a detached command', () => {
+  for (const [operation, input] of [
+    ['hp.adjust', {amount:-5}], ['hp.temp.set', {value:0}],
+    ['roll.ability', {ability:'str',mode:'normal'}],
+    ['roll.save', {ability:'dex',mode:'advantage'}],
+    ['roll.skill', {skill:'prc',mode:'disadvantage'}]
+  ]) assert.deepEqual(validateCommand(command(operation,input)), command(operation,input));
+  const original = command();
+  const parsed = validateCommand(original);
+  original.input.amount = 200;
+  original.scope.worldId = 'other';
+  assert.equal(parsed.input.amount, -5);
+  assert.equal(parsed.scope.worldId, 'campaign');
+});
+
+test('rejects user impersonation, generic edits, extra input and invalid identifiers', () => {
+  for (const bad of [
+    {...command(),userId:'gm'}, command('actor.update', {hp:100}),
+    command('hp.adjust', {amount:1,path:'system.hp'}),
+    {...command(),scope:{...scope,userId:'gm'}}, {...command(),actorId:''},
+    {...command(),requestId:'a'.repeat(129)}, command('roll.skill',{skill:'__proto__',mode:'normal'}),
+    command('roll.save',{ability:'str',mode:'blindroll'}),
+    command('roll.skill',{skill:'prc',mode:'normal',userId:'gm'})
+  ]) assert.throws(() => validateCommand(bad), {code:'invalid-command'});
+});
+
+test('rejects non-finite, fractional, coerced, and out-of-range HP inputs', () => {
+  for (const amount of [NaN,Infinity,1.2,'5',null,100001,-100001])
+    assert.throws(() => validateCommand(command('hp.adjust',{amount})), {code:'invalid-command'});
+  for (const value of [-1,100001,'0'])
+    assert.throws(() => validateCommand(command('hp.temp.set',{value})), {code:'invalid-command'});
+  assert.equal(validateCommand(command('hp.adjust',{amount:-100000})).input.amount,-100000);
+});
+
+test('connector URLs require HTTPS without embedded credentials, queries or fragments', () => {
+  assert.equal(validateConnectorUrl('https://example.test/'), 'https://example.test');
+  assert.equal(validateConnectorUrl('https://example.test/edge/'), 'https://example.test/edge');
+  for (const url of ['http://example.test','javascript:alert(1)','https://user:pass@example.test',
+    'https://example.test/?token=secret','https://example.test/#token','file:///test','not a url'])
+    assert.throws(() => validateConnectorUrl(url), {code:'invalid-url'});
+});

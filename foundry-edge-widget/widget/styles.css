@@ -1,0 +1,8 @@
+:root{color-scheme:dark;font-family:system-ui,sans-serif;background:#10151d;color:#e9edf4}
+*{box-sizing:border-box}body{margin:0}main{padding:24px;max-width:1000px;margin:auto}
+.eyebrow{color:#c5a56b;font-size:12px;letter-spacing:.12em}h1{font-size:26px;margin:8px 0}
+p{line-height:1.5}dl{display:grid;grid-template-columns:120px 1fr;gap:10px}
+dt,.hint{color:#a5b1c1}dd{margin:0;overflow-wrap:anywhere}button{min-height:48px;padding:12px 22px;border:1px solid #b99151;border-radius:8px;background:#463520;color:#fff;font:inherit;touch-action:manipulation}
+button:disabled{opacity:.55}button:focus-visible{outline:3px solid #e8c58b;outline-offset:3px}
+#result{padding:12px;background:#1d2633;border-radius:8px}.hint{font-size:13px}
+@media(max-height:360px){main{padding:12px 20px}h1{font-size:21px}p{margin:8px 0}dl{margin:10px 0}}

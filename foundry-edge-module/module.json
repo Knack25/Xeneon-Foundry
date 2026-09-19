@@ -1,0 +1,10 @@
+{
+  "id": "foundry-edge",
+  "title": "Foundry Edge — Compatibility Probe",
+  "description": "Early character adapter probe for the Xeneon Edge connector. Live compatibility has not yet been verified.",
+  "version": "0.1.0",
+  "authors": [{"name":"Nathan Schneider"}],
+  "compatibility": {"minimum":"14","maximum":"14"},
+  "relationships": {"systems":[{"id":"dnd5e","type":"system","compatibility":{"minimum":"5.3.3","maximum":"5.3.3"}}]},
+  "esmodules": ["scripts/main.js"]
+}

@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Foundry Edge Connection Check</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main>
+    <header><span class="eyebrow">FOUNDRY EDGE · CONNECTION CHECK</span><h1>Connect your world</h1></header>
+    <p>This diagnostic checks the connection before character controls are installed.</p>
+    <dl><dt>Widget size</dt><dd id="viewport">Measuring…</dd><dt>Connector</dt><dd id="address">Loading configuration…</dd></dl>
+    <button id="check" type="button" disabled>Check connection</button>
+    <p id="result" role="status" aria-live="polite">Waiting for configuration.</p>
+    <p class="hint">No Foundry password or character data is sent by this check.</p>
+  </main>
+  <script type="module" src="src/diagnostic.js"></script>
+</body>
+</html>
