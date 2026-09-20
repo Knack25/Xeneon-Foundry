@@ -1,6 +1,6 @@
 import { createAdapter } from './dnd5e.js';
 import { appendAttribution } from './chat.js';
-import { failure } from './protocol.js';
+import { DATA_SCHEMA_VERSION,PROTOCOL_RANGE,failure } from './protocol.js';
 import {registerAdminControls} from './admin.js';
 import {readPortrait} from './portrait.js';
 
@@ -17,7 +17,11 @@ export function registerModule({Hooks,game:initialGame,getGame = () => initialGa
   Hooks.once('ready', () => {
     const game = getGame();
     if (!game.settings.get(ID,'serviceUserId') || game.user.id !== game.settings.get(ID,'serviceUserId')) return;
+    const module=game.modules.get(ID);
+    if(!module||typeof module.version!=='string'||!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(module.version))return;
     const scope = Object.freeze({instanceId:'local-probe',worldId:game.world.id,generation:makeId()});
+    const release=Object.freeze({component:'module',version:module.version,
+      protocol:Object.freeze({...PROTOCOL_RANGE}),dataSchema:DATA_SCHEMA_VERSION});
     const adapter = createAdapter({game,getScope:()=>scope,
       getRollMode:()=>{
         const mode = globalThis.CONFIG?.Dice?.BasicRoll?.getMessageMode?.() ?? game.settings.get('core','messageMode');
@@ -28,7 +32,7 @@ export function registerModule({Hooks,game:initialGame,getGame = () => initialGa
         throw failure('service-access-denied','The probe is not running in the designated service session.');
     };
     // Local diagnostic API only. Remote transport, pairing and durable deduplication are not installed yet.
-    game.modules.get(ID).api = Object.freeze({scope,
+    module.api = Object.freeze({scope,release,
       listCharacters(userId){guard();return adapter.listCharacters(userId);},
       readCharacter(userId,actorId){guard();return adapter.readCharacter(userId,actorId,scope);},
       readPortrait(userId,actorId){guard();return readPortrait({game,userId,actorId});},

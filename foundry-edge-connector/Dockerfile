@@ -4,6 +4,8 @@ COPY --from=node /usr/local/bin/node /usr/local/bin/node
 WORKDIR /app/foundry-edge-connector
 COPY foundry-edge-connector/package.json foundry-edge-connector/package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts
+COPY release/component-versions.json /app/release/component-versions.json
+COPY foundry-edge-updater/src/identity.js foundry-edge-updater/src/errors.js /app/foundry-edge-updater/src/
 COPY foundry-edge-connector/src ./src
 COPY foundry-edge-connector/public ./public
 COPY foundry-edge-widget/widget /app/foundry-edge-widget/widget

@@ -1,12 +1,14 @@
 import {createServer as httpServer} from 'node:http';
 import {readFile} from 'node:fs/promises';
 import {createServer} from './server.js';
+import {connectorReleaseInfo} from './version.js';
 const assets={'/src/preferences.js':['src/preferences.js','text/javascript'],'/':['preview.html','text/html'],'/dashboard.css':['dashboard.css','text/css'],'/src/app.js':['src/app.js','text/javascript'],'/src/state.js':['src/state.js','text/javascript']};
 export function createApplication(config){
- const api=createServer(config);
+ const release=config.release??connectorReleaseInfo();
+ const api=createServer({...config,release});
  const server=httpServer(async(req,res)=>{
   res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');
-  if(req.url==='/ready'&&req.method==='GET'){res.writeHead(config.bridge.scope?200:503,{'Content-Type':'application/json'});res.end(JSON.stringify({ready:!!config.bridge.scope}));return;}
+  if(req.url==='/ready'&&req.method==='GET'){res.writeHead(config.bridge.scope?200:503,{'Content-Type':'application/json'});res.end(JSON.stringify({ready:!!config.bridge.scope,release}));return;}
   if(req.method==='GET'&&Object.hasOwn(assets,req.url)){
    const [name,type]=assets[req.url];
    try{

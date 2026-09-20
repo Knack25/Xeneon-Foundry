@@ -4,6 +4,7 @@ import path from 'node:path';
 import {readFile} from 'node:fs/promises';
 import { PROTOCOL_VERSION,failure,sameScope,validateConnectorUrl } from './protocol.js';
 import {AdminAuth,clientAddress} from './auth.js';
+import {connectorReleaseInfo} from './version.js';
 
 async function body(request){
  if(!request.headers['content-type']?.startsWith('application/json'))throw failure('invalid-body','JSON is required.');
@@ -80,6 +81,7 @@ function apiHandler({store,bridge,adminSecret,publicUrl,coordinator,localPreview
 
 // Without configuration, expose only the public diagnostic health endpoint.
 export function createServer(config) {
+  const release=config?.release??connectorReleaseInfo();
   const api=config?apiHandler(config):null;
   const server=createHttpServer(async(request,response) => {
     response.setHeader('Content-Type','application/json');
@@ -106,7 +108,7 @@ export function createServer(config) {
       response.end(JSON.stringify({error:{code:'method-not-allowed'}}));
       return;
     }
-    response.end(JSON.stringify({service:'foundry-edge-connector',protocol:PROTOCOL_VERSION,status:config?'running':'diagnostic'}));
+    response.end(JSON.stringify({service:'foundry-edge-connector',protocol:PROTOCOL_VERSION,status:config?'running':'diagnostic',release}));
   });
   server.requestTimeout=15000;server.headersTimeout=10000;
   return server;

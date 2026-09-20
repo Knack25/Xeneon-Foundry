@@ -35,7 +35,7 @@ test('chat attribution uses text content and does not render on hidden roll cont
 test('only explicitly designated service user receives a probe API', () => {
   const handlers = new Map();
   const Hooks = {once:(name,fn)=>handlers.set(name,fn),on:()=>{}};
-  const module = {};
+  const module = {version:'0.1.0'};
   const settings = new Map();
   const game = {settings:{register:(ns,key,definition)=>settings.set(key,definition.default),get:(ns,key)=>settings.get(key)},
     user:{id:'player'},world:{id:'test-world'},modules:new Map([['foundry-edge',module]])};
@@ -50,6 +50,21 @@ test('only explicitly designated service user receives a probe API', () => {
   handlers.get('ready')();
   assert.equal(typeof module.api.listCharacters,'function');
   assert.equal(module.api.scope.worldId,'test-world');
+  assert.deepEqual(module.api.release,{component:'module',version:'0.1.0',protocol:{minimum:1,maximum:1},dataSchema:1});
+  assert.equal(Object.isFrozen(module.api.release),true);
+  assert.equal(Object.isFrozen(module.api.release.protocol),true);
+});
+
+test('an invalid installed module version never exposes the service API', () => {
+  const handlers=new Map();
+  const Hooks={once:(name,fn)=>handlers.set(name,fn),on:()=>{}};
+  const module={version:'development'};
+  const settings=new Map([['serviceUserId','service']]);
+  const game={settings:{register:()=>{},get:(ns,key)=>settings.get(key)},user:{id:'service'},world:{id:'test-world'},
+    modules:new Map([['foundry-edge',module]])};
+  registerModule({Hooks,game,makeId:()=>'generation-1'});
+  handlers.get('init')();handlers.get('ready')();
+  assert.equal(module.api,undefined);
 });
 
 test('module registers hooks before game exists and resolves game during init', async () => {
