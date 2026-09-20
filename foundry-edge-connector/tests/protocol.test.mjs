@@ -15,6 +15,21 @@ test('weapon commands accept explicit selections and reject formulas or injected
  assert.throws(()=>validateCommand(command('roll.damage',{...input,mode:'advantage'})),{code:'invalid-command'});
 });
 
+test('expanded commands constrain edit fields, expected values, slots and cast references',()=>{
+ for(const [operation,input] of [
+  ['item.equip',{itemId:'item',value:true,expected:false}],['item.quantity',{itemId:'item',value:4,expected:2}],
+  ['uses.set',{itemId:'item',value:1,expected:2}],['slots.set',{key:'spell2',value:1,expected:2}],
+  ['resource.set',{key:'primary',value:1,expected:2}],['details.set',{field:'alignment',value:'Good',expected:''}],
+  ['roll.initiative',{combatId:'',mode:'normal'}],['spell.cast',{itemId:'spell',activityId:'activity',slot:'spell2',concentration:''}],
+  ['spell.attack',{castId:'cast',mode:'advantage'}],['spell.damage',{castId:'cast',mode:'critical'}]
+ ])assert.deepEqual(validateCommand(command(operation,input)).input,input);
+ for(const [operation,input] of [
+  ['slots.set',{key:'__proto__',value:1,expected:2}],['details.set',{field:'ownership',value:'gm',expected:''}],
+  ['item.equip',{itemId:'item',value:1,expected:false}],['uses.set',{itemId:'item',value:-1,expected:2}],
+  ['spell.cast',{itemId:'spell',activityId:'activity',slot:'spell0',concentration:''}],['spell.cast',{itemId:'spell',activityId:'activity',slot:['spell1'],concentration:''}],['spell.damage',{castId:'cast',mode:'advantage'}]
+ ])assert.throws(()=>validateCommand(command(operation,input)),{code:'invalid-command'});
+});
+
 test('scope rejects cross-world, cross-server, stale generation and incomplete identities', () => {
   assert.equal(sameScope(scope, { ...scope }), true);
   for (const key of Object.keys(scope)) assert.equal(sameScope(scope, { ...scope, [key]: 'different' }), false);

@@ -171,3 +171,11 @@ test('prepared and always-prepared spells remain distinguishable from unprepared
   assert.deepEqual(spells.map(spell => spell.prepared),[false,true,true]);
   assert.deepEqual(spells.map(spell => spell.preparationState),[0,1,2]);
 });
+
+test('initiative rolls standalone or delegates existing combat entries without creating combatants',async()=>{
+ const {adapter,pc,game,effects}=fixture();pc.getInitiativeRoll=config=>({total:16,async evaluate(){effects.push(config);return this;},async toMessage(data,options){effects.push({data,options});}});
+ await adapter.executeAction('player',makeCommand('roll.initiative',{combatId:'',mode:'advantage'}));assert.equal(effects[0].advantage,true);assert.equal(effects[1].data.speaker.actor,'pc');
+ game.combat={id:'combat',combatants:[{actor:pc,initiative:13}]};pc.rollInitiative=async(options,config)=>{effects.push({options,config});return game.combat;};
+ await adapter.executeAction('player',makeCommand('roll.initiative',{combatId:'combat',mode:'normal'}));assert.equal(effects[2].options.createCombatants,false);assert.equal(effects[2].options.rerollInitiative,true);
+ await assert.rejects(()=>adapter.executeAction('player',makeCommand('roll.initiative',{combatId:'old',mode:'normal'})),{code:'stale-combat'});
+});

@@ -59,3 +59,11 @@ Remove the test player's ownership and confirm reads and actions fail even thoug
 The snapshot includes weapon attack activities, their native to-hit labels, weapon modes and ammunition choices. `roll.attack` and `roll.damage` require explicit `itemId`, `activityId`, `attackMode`, `ammunitionId` and `mode`; the module resolves these only within the authorized character and checks the current options before dispatch. No client-supplied formula or arbitrary roll configuration is accepted.
 
 Attacks use D&D 5.3.3 Activity `rollAttack`; damage uses `rollDamage` with explicit critical state and no dialog. Native ammunition/thrown-weapon consumption applies to attacks. Damage rolls are independent; select the same mode and ammunition used for the attack. When Foundry deletes a final ammunition stack, its damage data is retained for that player for ten minutes within the same connector session, shown as "spent; damage only". It cannot be used for another attack. After expiry or a connector restart, resolve that damage in Foundry.
+
+## Expanded controls
+
+`controls.js` implements explicit expected-value edits for inventory equipment/quantity, remaining item uses, spell slots, primary/secondary/tertiary resources and allowlisted character detail fields. Item uses write native `uses.spent`; derived maxima are not overwritten. The adapter applies current player/service ownership checks before every operation.
+
+`spells.js` calls native `Activity.use` with an explicit slot, template placement disabled and subsequent dialogs disabled. The cast consumes resources and posts the attributed chat card. A bounded ten-minute per-player/character cache retains the native scaled/consumed clone for follow-up attack/damage/healing, linked to the original chat message. A world/generation change invalidates retained casts. Unsupported activity types stay in Foundry.
+
+Initiative uses native `Actor.rollInitiative` for existing combat entries and `getInitiativeRoll` plus chat outside combat. It does not create combatants, encounters or advance encounter turns.
