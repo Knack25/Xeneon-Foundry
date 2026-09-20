@@ -15,3 +15,4 @@
 !foundry-edge-updater/src/
 !foundry-edge-updater/src/identity.js
 !foundry-edge-updater/src/errors.js
+!foundry-edge-updater/src/safety-gate.js

@@ -99,9 +99,10 @@ export function createServer(config) {
     if (request.url !== '/health') {
       if(api){
         try{await api(request,response);}catch(error){
-          const codes={'unauthorized':401,'forbidden':403,'rate-limited':429,'not-found':404,'request-not-found':404,'activity-not-found':404,'no-mapping':403,'stale-world':409,'request-conflict':409,'activity-conflict':409,'busy':429,'activity-limit':429,'invalid-body':400,'invalid-mapping':400,'invalid-invite':400,'invalid-command':400,'invalid-activity':400};
+          const codes={'unauthorized':401,'forbidden':403,'rate-limited':429,'not-found':404,'request-not-found':404,'activity-not-found':404,'no-mapping':403,'stale-world':409,'request-conflict':409,'activity-conflict':409,'busy':429,'activity-limit':429,'invalid-body':400,'invalid-mapping':400,'invalid-invite':400,'invalid-command':400,'invalid-activity':400,'maintenance':503};
           const status=error.code==='invalid-label'?400:codes[error.code]??503;
-          response.writeHead(status);response.end(JSON.stringify({error:{code:status===503?'unavailable':error.code,message:status===503?'Connector is unavailable. Try again shortly.':error.message}}));
+          const hidden=status===503&&error.code!=='maintenance';
+          response.writeHead(status);response.end(JSON.stringify({error:{code:hidden?'unavailable':error.code,message:hidden?'Connector is unavailable. Try again shortly.':error.message}}));
         }
         return;
       }

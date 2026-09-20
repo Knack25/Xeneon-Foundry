@@ -64,6 +64,7 @@ export class Store {
     this.db.prepare('INSERT INTO mappings(device,instance,world,user_id) VALUES(?,?,?,?) ON CONFLICT(device,instance,world) DO UPDATE SET user_id=excluded.user_id,revision=mappings.revision+1').run(deviceId,scope.instanceId,scope.worldId,userId);
   }
   mappingRevision(deviceId,scope){this.resolveUser(deviceId,scope);return this.db.prepare('SELECT revision FROM mappings WHERE device=? AND instance=? AND world=?').get(deviceId,scope.instanceId,scope.worldId).revision;}
+  countUnresolvedRequests(){return this.db.prepare("SELECT count(*) AS count FROM requests WHERE status IN ('accepted','dispatched','unknown')").get().count;}
   revokeDevice(deviceId){this.db.prepare('UPDATE devices SET revoked=1 WHERE id=?').run(deviceId);}
   renameDevice(deviceId,label){
     if(typeof label!=='string'||label.length<1||label.length>80||label!==label.trim()||/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u.test(label))

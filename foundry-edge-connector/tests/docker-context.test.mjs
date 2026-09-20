@@ -5,7 +5,7 @@ import {readFile} from 'node:fs/promises';
 function matches(pattern,path){
   if(pattern==='**')return true;
   if(pattern.endsWith('/**'))return path.startsWith(pattern.slice(0,-2));
-  if(pattern.endsWith('/'))return path.startsWith(pattern);
+  if(pattern.endsWith('/'))return path===pattern.slice(0,-1);
   return path===pattern;
 }
 

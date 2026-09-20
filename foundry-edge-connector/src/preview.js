@@ -8,6 +8,7 @@ import {BrowserBridge} from './browser.js';
 import {startBrowser} from './runtime-session.js';
 import {Coordinator} from './commands.js';
 import {createServer} from './server.js';
+import {createUpdateSafety} from './update-safety.js';
 
 // This preview deliberately binds only to loopback. Use HTTPS deployment for remote devices.
 const secretFile=process.argv[2],runtimeDir=process.argv[3];
@@ -16,13 +17,13 @@ const accounts=JSON.parse(await readFile(secretFile,'utf8'));
 if(accounts.worldId!=='xeneon-edge-test')throw Error('Preview bootstrap is restricted to xeneon-edge-test.');
 await mkdir(runtimeDir,{recursive:true});
 const store=new Store(path.join(runtimeDir,'preview.sqlite'));
-const bridge=new BrowserBridge(),coordinator=new Coordinator({store,bridge});
+const bridge=new BrowserBridge(),safety=createUpdateSafety(store),coordinator=new Coordinator({store,bridge,gate:safety.gate});
 const adminFile=path.join(runtimeDir,'admin-key.txt');
 let adminSecret;
 try{adminSecret=(await readFile(adminFile,'utf8')).trim();}
 catch(error){if(error.code!=='ENOENT')throw error;adminSecret=randomBytes(32).toString('base64url');await writeFile(adminFile,adminSecret,{flag:'wx',mode:0o600});}
-const controller=startBrowser({bridge,config:{url:accounts.url,channel:process.platform==='win32'?'msedge':undefined,worlds:{[accounts.worldId]:{userId:accounts.service.id,password:accounts.service.password}}},onStatus:status=>console.log('Foundry service: '+status)});
-const api=createServer({store,bridge,coordinator,adminSecret,publicUrl:'http://127.0.0.1:8791',localPreview:true});
+const controller=startBrowser({bridge,presence:safety.presence,config:{url:accounts.url,channel:process.platform==='win32'?'msedge':undefined,worlds:{[accounts.worldId]:{userId:accounts.service.id,password:accounts.service.password}}},onStatus:status=>console.log('Foundry service: '+status)});
+const api=createServer({store,bridge,coordinator,activity:safety.activity,adminSecret,publicUrl:'http://127.0.0.1:8791',localPreview:true});
 const widget=fileURLToPath(new URL('../../foundry-edge-widget/widget/',import.meta.url));
 const files={'/src/preferences.js':['src/preferences.js','text/javascript'],'/':['preview.html','text/html'],'/dashboard.css':['dashboard.css','text/css'],'/src/app.js':['src/app.js','text/javascript'],'/src/state.js':['src/state.js','text/javascript']};
 const server=httpServer(async(req,res)=>{

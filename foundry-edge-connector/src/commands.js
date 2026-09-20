@@ -6,8 +6,8 @@ const canonical=value=>JSON.stringify(value&&typeof value==='object'
 const unknown=requestId=>({requestId,status:'unknown',error:{code:'outcome-unknown',message:'The action may have completed. Check Foundry before taking another action.'}});
 
 export class Coordinator {
-  constructor({store,bridge,maxQueued=100}){
-    this.store=store;this.bridge=bridge;this.maxQueued=maxQueued;this.queues=new Map();this.pending=0;
+  constructor({store,bridge,gate,maxQueued=100}){
+    this.store=store;this.bridge=bridge;this.gate=gate;this.maxQueued=maxQueued;this.queues=new Map();this.pending=0;
     // A new process cannot know whether a previous dispatch reached Foundry.
     store.db.prepare("UPDATE requests SET status='unknown',result=NULL WHERE status IN ('accepted','dispatched')").run();
   }
@@ -25,6 +25,7 @@ export class Coordinator {
       if(old.digest!==hash)throw failure('request-conflict','This request ID was already used for a different action.');
       return this.getRequest(deviceId,command.requestId);
     }
+    this.gate.assertActionAdmission();
     const acceptedUser=this.check(deviceId,command.scope),acceptedRevision=this.store.mappingRevision(deviceId,command.scope);
     if(this.pending>=this.maxQueued)throw failure('busy','Too many pending actions. Wait before trying again.');
     this.store.db.prepare("INSERT INTO requests(device,id,digest,status) VALUES(?,?,?,'accepted')").run(deviceId,command.requestId,hash);
