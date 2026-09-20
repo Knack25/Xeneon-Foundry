@@ -34,6 +34,11 @@ export function registerModule({Hooks,game:initialGame,getGame = () => initialGa
     };
     // Local diagnostic API only. Remote transport, pairing and durable deduplication are not installed yet.
     module.api = Object.freeze({scope,release,
+      readPresence(){
+        guard();
+        return {scope:{...scope},serviceUserId:game.user.id,
+          users:game.users.contents.filter(user=>user.active===true).map(user=>({id:user.id,role:user.role}))};
+      },
       listCharacters(userId){guard();return adapter.listCharacters(userId);},
       readCharacter(userId,actorId){guard();return adapter.readCharacter(userId,actorId,scope);},
       readPortrait(userId,actorId){guard();return readPortrait({game,userId,actorId});},

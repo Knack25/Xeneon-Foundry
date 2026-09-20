@@ -37,8 +37,14 @@ test('only explicitly designated service user receives a probe API', () => {
   const Hooks = {once:(name,fn)=>handlers.set(name,fn),on:()=>{}};
   const module = {version:'0.1.0'};
   const settings = new Map();
+  const users=[
+    {id:'service',role:2,active:true,name:'Private service name',password:'not public'},
+    {id:'player',role:1,active:true,name:'Private player name'},
+    {id:'gm',role:4,active:true,name:'Private GM name'},
+    {id:'inactive',role:1,active:false,name:'Private inactive name'}
+  ];
   const game = {settings:{register:(ns,key,definition)=>settings.set(key,definition.default),get:(ns,key)=>settings.get(key)},
-    user:{id:'player'},world:{id:'test-world'},modules:new Map([['foundry-edge',module]])};
+    user:{id:'player'},users:{contents:users},world:{id:'test-world'},modules:new Map([['foundry-edge',module]])};
   registerModule({Hooks,game,makeId:()=> 'generation-1'});
   handlers.get('init')();
   handlers.get('ready')();
@@ -53,6 +59,20 @@ test('only explicitly designated service user receives a probe API', () => {
   assert.deepEqual(module.api.release,{component:'module',version:'0.1.0',protocol:{minimum:1,maximum:1},dataSchema:1});
   assert.equal(Object.isFrozen(module.api.release),true);
   assert.equal(Object.isFrozen(module.api.release.protocol),true);
+  const firstPresence=module.api.readPresence();
+  assert.deepEqual(firstPresence,{
+    scope:{instanceId:'local-probe',worldId:'test-world',generation:'generation-1'},
+    serviceUserId:'service',
+    users:[{id:'service',role:2},{id:'player',role:1},{id:'gm',role:4}]
+  });
+  assert.equal(JSON.stringify(firstPresence).includes('Private'),false);
+  users[3].active=true;
+  const secondPresence=module.api.readPresence();
+  assert.notEqual(secondPresence,firstPresence);
+  assert.deepEqual(secondPresence.scope,firstPresence.scope);
+  assert.deepEqual(secondPresence.users.at(-1),{id:'inactive',role:1});
+  game.user.id='player';
+  assert.throws(()=>module.api.readPresence(),{code:'service-access-denied'});
 });
 
 test('an invalid installed module version never exposes the service API', () => {
