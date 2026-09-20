@@ -9,3 +9,9 @@
 !foundry-edge-widget/
 !foundry-edge-widget/widget/
 !foundry-edge-widget/widget/**
+!release/
+!release/component-versions.json
+!foundry-edge-updater/
+!foundry-edge-updater/src/
+!foundry-edge-updater/src/identity.js
+!foundry-edge-updater/src/errors.js

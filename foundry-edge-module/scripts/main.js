@@ -5,6 +5,7 @@ import {registerAdminControls} from './admin.js';
 import {readPortrait} from './portrait.js';
 
 const ID = 'foundry-edge';
+const SEMVER=/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*))?$/;
 export function registerModule({Hooks,game:initialGame,getGame = () => initialGame,makeId = () => crypto.randomUUID()}) {
   Hooks.once('init', () => {
     const game = getGame();
@@ -18,7 +19,7 @@ export function registerModule({Hooks,game:initialGame,getGame = () => initialGa
     const game = getGame();
     if (!game.settings.get(ID,'serviceUserId') || game.user.id !== game.settings.get(ID,'serviceUserId')) return;
     const module=game.modules.get(ID);
-    if(!module||typeof module.version!=='string'||!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(module.version))return;
+    if(!module||typeof module.version!=='string'||!SEMVER.test(module.version))return;
     const scope = Object.freeze({instanceId:'local-probe',worldId:game.world.id,generation:makeId()});
     const release=Object.freeze({component:'module',version:module.version,
       protocol:Object.freeze({...PROTOCOL_RANGE}),dataSchema:DATA_SCHEMA_VERSION});

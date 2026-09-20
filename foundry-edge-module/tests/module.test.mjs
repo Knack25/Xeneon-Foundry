@@ -67,6 +67,18 @@ test('an invalid installed module version never exposes the service API', () => 
   assert.equal(module.api,undefined);
 });
 
+test('a valid test-channel SemVer prerelease exposes its exact module identity', () => {
+  const handlers=new Map();
+  const Hooks={once:(name,fn)=>handlers.set(name,fn),on:()=>{}};
+  const module={version:'0.2.0-rc.1'};
+  const settings=new Map([['serviceUserId','service']]);
+  const game={settings:{register:()=>{},get:(ns,key)=>settings.get(key)},user:{id:'service'},world:{id:'test-world'},
+    modules:new Map([['foundry-edge',module]])};
+  registerModule({Hooks,game,makeId:()=>'generation-1'});
+  handlers.get('init')();handlers.get('ready')();
+  assert.equal(module.api.release.version,'0.2.0-rc.1');
+});
+
 test('module registers hooks before game exists and resolves game during init', async () => {
   const previousHooks=globalThis.Hooks;
   const previousGame=globalThis.game;
