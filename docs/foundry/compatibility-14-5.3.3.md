@@ -2,6 +2,16 @@
 
 Status: native test-world actions, local/hosted dashboards, administration and VPS browser operation are verified. Physical iCUE compatibility and the complete release matrix remain pending.
 
+## Current checkpoint - 2026-09-20
+
+The session feature list is implemented and deployed. **72 automated tests pass**, plus the isolated dashboard browser regression and a complete hosted live flow against disposable Edge Controls Hero in `xeneon-edge-test`.
+
+Live evidence covers Quick Actions persistence, theme/font preferences, authenticated portrait display, inspiration, condition add/remove, concentration save/end, individual Hit Dice, native short/long rests, feature resource consumption, consumable use and retained healing, attunement, container movement, currency, preparation, device naming/last seen and death saves. The same flow rechecked initiative inside/outside combat, equipment, resources, upcasting, critical damage and healing. Test combat was deleted, disposable pairing revoked and fixture HP restored to 20. No campaign or world-time changes were requested.
+
+Review fixes include a serializable Hit Dice iterator projection, post-fetch portrait ownership checks, consistent activity capability filtering and generic activity follow-up visibility. Portrait reads have a ten-second timeout and 1 MiB streaming limit.
+
+Remaining release checks: physical iCUE Large/XL touch, storage and import behavior, and a second-world live transition matrix. Scene templates, target damage/effects and complex summon/enchant/transform workflows remain in Foundry. Older checkpoints below record their status at that time and are superseded by this checkpoint and the hosted administration evidence.
+
 ## Hosted administration and multiplayer checkpoint
 
 Deployed isolated container `foundry-edge-foundry-edge-1` under `/opt/foundry-edge`, with separate SQLite volume and private service/admin credentials. HTTPS hostname: `edge.foundry.jewinashoe.org`. No Foundry restart or campaign modification. Node24.21.0 and Playwright1.63.0 image digests are pinned. Certificate validation and public routing passed; the initial browser check required a temporary hostname override while this PC cached the previous DNS miss.

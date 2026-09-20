@@ -16,9 +16,13 @@ async function refresh(){
  $('create-invite').disabled=!state.scope||!state.players.length;
  const fragment=document.createDocumentFragment();
  for(const device of state.devices){
-  const section=node('article','');section.className='device';section.append(node('h3',device.deviceId),node('p',device.revoked?'Revoked':'Active · paired '+new Date(device.created).toLocaleString()));
+  const section=node('article','');section.className='device';section.append(node('h3',device.label||'Edge '+device.deviceId.slice(0,8)),node('p','Device ID: '+device.deviceId),node('p',device.lastSeen?'Last seen: '+new Date(device.lastSeen).toLocaleString():'Last seen: no authenticated requests yet'),node('p',device.revoked?'Revoked':'Active · paired '+new Date(device.created).toLocaleString()));
   const mappings=node('ul','');for(const mapping of device.mappings)mappings.append(node('li',`${mapping.worldId}: ${state.players.find(p=>p.id===mapping.userId&&state.scope?.worldId===mapping.worldId)?.name??mapping.userId}`));section.append(mappings);
   if(!device.revoked){
+   const nameForm=node('form',''),nameLabel=node('label','Device name'),nameInput=node('input','');
+   nameInput.type='text';nameInput.required=true;nameInput.maxLength=80;nameInput.value=device.label||'';nameInput.placeholder='e.g. Living room Edge';nameLabel.append(nameInput);
+   nameForm.append(nameLabel,node('button','Save device name'));
+   nameForm.onsubmit=event=>{event.preventDefault();void mutate(async()=>{await api('devices/rename',{deviceId:device.deviceId,label:nameInput.value});await refresh();say('Device name saved.');});};section.append(nameForm);
    if(state.scope&&state.players.length){
     const form=node('form',''),label=node('label','Player in loaded world'),select=node('select','');
     const current=device.mappings.find(m=>m.instanceId===state.scope.instanceId&&m.worldId===state.scope.worldId);

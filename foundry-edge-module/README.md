@@ -1,6 +1,6 @@
 # Foundry Edge companion module — compatibility probe
 
-Targets Foundry 14 / D&D 5e 5.3.3. Live operation is not verified yet. There is no remote command listener, pairing, unattended browser, or retry protection in this probe. Its purpose is to validate native API behavior before implementing those components.
+Targets Foundry 14.367 / D&D 5e 5.3.3. The companion module and standalone connector are deployed and verified in the disposable Xeneon Edge Test world. The connector handles pairing, authenticated requests, durable request coordination and the unattended service browser; this module checks current player/service ownership and invokes native character APIs.
 
 ## Build and install into a test world
 
@@ -48,7 +48,7 @@ await edge.executeAction('TEST_PLAYER_ID', {
 });
 ```
 
-Confirm the character is the speaker, the requesting player label appears, the actual author is the service account, and no dialog opens. Do not retry a command after an uncertain result: this local probe has no durable request coordinator yet.
+Confirm the character is the speaker, the requesting player label appears, the actual author is the service account, and no dialog opens. Direct console calls bypass the connector's durable request coordinator. Do not retry an uncertain action.
 
 For disposable-character HP testing use `operation: 'hp.adjust', input: {amount: -1}` for damage, positive amounts for healing, or `operation: 'hp.temp.set', input: {value: 2}` to explicitly replace temp HP. Check that damage consumes temp HP and healing respects the maximum. These use native D&D methods; automated tests verify call boundaries, not the real game engine.
 
@@ -67,3 +67,11 @@ Attacks use D&D 5.3.3 Activity `rollAttack`; damage uses `rollDamage` with expli
 `spells.js` calls native `Activity.use` with an explicit slot, template placement disabled and subsequent dialogs disabled. The cast consumes resources and posts the attributed chat card. A bounded ten-minute per-player/character cache retains the native scaled/consumed clone for follow-up attack/damage/healing, linked to the original chat message. A world/generation change invalidates retained casts. Unsupported activity types stay in Foundry.
 
 Initiative uses native `Actor.rollInitiative` for existing combat entries and `getInitiativeRoll` plus chat outside combat. It does not create combatants, encounters or advance encounter turns.
+
+## Session controls and portraits
+
+`gameplay.js` handles native short/long rests, condition toggles, inspiration and ending concentration. Rest options disable automatic Hit Dice spending, world-time advancement and bastion advancement. The adapter exposes native Hit Die, death-save and concentration rolls. Derived encumbrance statuses and concentration are excluded from generic condition toggles.
+
+Explicit expected-value controls also cover currency, preparation, attunement and container membership. Native feature and consumable activities share the bounded follow-up cache with spells. A consumed, automatically deleted item can finish its retained roll without another resource use.
+
+`portrait.js` authorizes before and after fetching the actor's configured same-origin raster image. Redirects, external URLs and non-raster formats are rejected; streaming reads are limited to 1 MiB and ten seconds. No arbitrary client URL is accepted.

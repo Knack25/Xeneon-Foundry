@@ -7,7 +7,7 @@ page.setDefaultTimeout(10000);
 const scope={instanceId:'test',worldId:'world',generation:'test'};
 const commands=[];
 const snapshot={scope,revision:1,actorId:'pc',name:'Hero',hp:{value:20,max:20,temp:0},ac:12,speed:{},abilities:{},skills:{},
- details:{alignment:'Good'},combatId:'',concentration:'',resources:{primary:{value:1,max:3,label:'Ki'}},spellSlots:{spell1:{value:2,max:3,level:1}},spells:[{id:'spell',name:'Bolt',level:1,preparationState:1,prepared:true,activities:[{id:'activity',name:'Bolt',supported:true,requiresSlot:true}]}],inventory:[{id:'sword',name:'Longsword',quantity:2,canEquip:true,equipped:false}],features:[],capabilities:['roll.attack','roll.damage','roll.initiative','item.equip','item.quantity','slots.set','resource.set','details.set','spell.cast'],attacks:[{itemId:'sword',activityId:'strike',name:'Longsword',activityName:'Strike',toHit:'+5',hasDamage:true,
+ hitDice:[{denomination:'d10',value:2}],conditions:[{id:'prone',name:'Prone',active:false}],inspiration:false,details:{alignment:'Good'},combatId:'',concentration:'',resources:{primary:{value:1,max:3,label:'Ki'}},spellSlots:{spell1:{value:2,max:3,level:1}},spells:[{id:'spell',name:'Bolt',level:1,preparationState:1,prepared:true,activities:[{id:'activity',name:'Bolt',supported:true,requiresSlot:true}]}],inventory:[{id:'sword',name:'Longsword',quantity:2,canEquip:true,equipped:false}],features:[],capabilities:['rest.short','rest.long','roll.hitDie','condition.set','inspiration.set','roll.attack','roll.damage','roll.initiative','item.equip','item.quantity','slots.set','resource.set','details.set','spell.cast'],attacks:[{itemId:'sword',activityId:'strike',name:'Longsword',activityName:'Strike',toHit:'+5',hasDamage:true,
  attackModes:[{value:'oneHanded',label:'One handed'},{value:'twoHanded',label:'Two handed'}],ammunition:[]}]};
 await page.route('https://widget.test/**',async route=>{
  const path=new URL(route.request().url()).pathname;let value;
@@ -17,7 +17,7 @@ await page.route('https://widget.test/**',async route=>{
  else if(path==='/v1/characters/pc')value=snapshot;
  else if(path==='/v1/commands'){commands.push(route.request().postDataJSON());value={status:'completed'};}
  if(value)return route.fulfill({json:value});
- const assets={'/':'preview.html','/dashboard.css':'dashboard.css','/src/app.js':'src/app.js','/src/state.js':'src/state.js'};
+ const assets={'/src/preferences.js':'src/preferences.js','/':'preview.html','/dashboard.css':'dashboard.css','/src/app.js':'src/app.js','/src/state.js':'src/state.js'};
  if(!assets[path])return route.fulfill({status:404});
  return route.fulfill({body:await readFile(new URL('../widget/'+assets[path],import.meta.url)),contentType:path.endsWith('.js')?'text/javascript':path.endsWith('.css')?'text/css':'text/html'});
 });
@@ -35,6 +35,9 @@ try{
  await submit('Set quantity',()=>page.locator('#amount').fill('4'));assert.deepEqual(commands.at(-1).input,{itemId:'sword',expected:2,value:4});
  await page.locator('[data-tab="details"]').click();await submit('Edit alignment',()=>page.locator('#text-value').fill('Neutral'));assert.deepEqual(commands.at(-1).input,{field:'alignment',expected:'Good',value:'Neutral'});
  await page.locator('[data-tab="spells"]').click();await submit('Cast Bolt');assert.deepEqual(commands.at(-1).input,{itemId:'spell',activityId:'activity',concentration:'',slot:'spell1'});
+ await page.locator('[data-tab="session"]').click();await submit('Short rest');assert.deepEqual(commands.at(-1).input,{});assert.equal(commands.at(-1).operation,'rest.short');await submit('Spend d10 (2 left)');assert.deepEqual(commands.at(-1).input,{denomination:'d10'});await submit('Add Prone');assert.deepEqual(commands.at(-1).input,{id:'prone',active:true,expected:false});
+ await page.locator('[data-tab="quick"]').click();await page.locator('#sheet-search').fill('Longsword Attack');await page.locator('#sheet .row').getByRole('button',{name:'Pin',exact:true}).click();await page.locator('.quick-grid').getByRole('button',{name:'Longsword Attack'}).waitFor();await page.reload();await page.locator('#dashboard').waitFor({state:'visible'});await page.locator('[data-tab="quick"]').click();await page.locator('.quick-grid').getByRole('button',{name:'Longsword Attack'}).waitFor();
+ await page.locator('[data-tab="display"]').click();await page.locator('#pref-theme').selectOption('blue');assert.equal(await page.locator('html').getAttribute('data-theme'),'blue');
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  console.log('Dashboard UI passed: weapon modes, critical damage, edit expected values, spell slot selection and no overflow.');
 }finally{await browser.close();}

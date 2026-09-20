@@ -12,3 +12,12 @@ test('explicit edits reject stale values and update only intended native fields'
  await editCharacter(actor,'details.set',{field:'name',value:'New Hero',expected:'Hero'});assert.deepEqual(calls.pop(),{name:'New Hero'});
  await assert.rejects(()=>editCharacter(actor,'item.quantity',{itemId:'foreign',value:5,expected:1}),{code:'unsupported-action'});
 });
+
+test('container edits reject cycles and foreign containers; preparation preserves always-prepared spells',async()=>{
+ const calls=[];const pack={id:'pack',type:'container',system:{container:''},update:async c=>calls.push(c)},nested={id:'nested',type:'container',system:{container:'pack'},update:async c=>calls.push(c)};
+ const spell={id:'spell',type:'spell',system:{prepared:2},update:async c=>calls.push(c)};const actor={items:[pack,nested,spell],system:{currency:{gp:3}}};
+ await assert.rejects(()=>editCharacter(actor,'item.container',{itemId:'pack',expected:'',value:'nested'}),{code:'invalid-value'});
+ await assert.rejects(()=>editCharacter(actor,'item.container',{itemId:'nested',expected:'pack',value:'foreign'}),{code:'unsupported-action'});
+ await editCharacter(actor,'item.container',{itemId:'nested',expected:'pack',value:''});assert.deepEqual(calls.pop(),{'system.container':null});
+ await assert.rejects(()=>editCharacter(actor,'spell.prepare',{itemId:'spell',expected:2,value:0}),{code:'unsupported-action'});
+});

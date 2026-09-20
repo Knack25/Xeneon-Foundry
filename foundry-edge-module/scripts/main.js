@@ -2,6 +2,7 @@ import { createAdapter } from './dnd5e.js';
 import { appendAttribution } from './chat.js';
 import { failure } from './protocol.js';
 import {registerAdminControls} from './admin.js';
+import {readPortrait} from './portrait.js';
 
 const ID = 'foundry-edge';
 export function registerModule({Hooks,game:initialGame,getGame = () => initialGame,makeId = () => crypto.randomUUID()}) {
@@ -30,6 +31,7 @@ export function registerModule({Hooks,game:initialGame,getGame = () => initialGa
     game.modules.get(ID).api = Object.freeze({scope,
       listCharacters(userId){guard();return adapter.listCharacters(userId);},
       readCharacter(userId,actorId){guard();return adapter.readCharacter(userId,actorId,scope);},
+      readPortrait(userId,actorId){guard();return readPortrait({game,userId,actorId});},
       executeAction(userId,command){guard();return adapter.executeAction(userId,command);}
     });
   });

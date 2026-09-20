@@ -22,6 +22,14 @@ test('admin requires login, CSRF and valid active-world player; devices cannot a
   const invite=await post('/admin/invites',{scope,userId:'p'},headers);assert.equal(invite.status,200);
   const {code}=await invite.json();const paired=await post('/v1/pair',{code});assert.equal(paired.status,200);
   const {token,deviceId}=await paired.json();
+  assert.equal((await post('/admin/devices/rename',{deviceId,label:'Desk Edge'},{Authorization:`Bearer ${token}`})).status,401);
+  assert.equal((await post('/admin/devices/rename',{deviceId,label:'Desk Edge'},{Cookie:headers.Cookie})).status,403);
+  assert.equal((await post('/admin/devices/rename',{deviceId,label:'Desk Edge'},{...headers,Origin:'https://evil.example'})).status,403);
+  assert.equal((await post('/admin/devices/rename',{deviceId,label:'x'.repeat(81)},headers)).status,400);
+  assert.equal((await post('/admin/devices/rename',{deviceId,label:'Desk Edge'},headers)).status,200);
+  const deviceState=await (await fetch(url+'/admin/state',{headers:{Cookie:headers.Cookie}})).json();
+  assert.equal(deviceState.devices[0].label,'Desk Edge');assert.equal(deviceState.devices[0].lastSeen,null);
+  assert.equal(JSON.stringify(deviceState).includes(token),false);
   for(let i=0;i<6;i++){
    const extra=await (await post('/admin/invites',{scope,userId:'p'},headers)).json();
    assert.equal((await post('/v1/pair',{code:extra.code})).status,200,'valid pairings must not count as failed attempts');
@@ -29,6 +37,7 @@ test('admin requires login, CSRF and valid active-world player; devices cannot a
   assert.equal((await post('/admin/invites',{scope,userId:'p'},{Authorization:`Bearer ${token}`})).status,401);
   const world=()=>fetch(url+'/v1/world',{headers:{Authorization:`Bearer ${token}`}});
   assert.equal((await world()).status,200);
+  assert.equal(typeof store.listDevices().find(d=>d.deviceId===deviceId).lastSeen,'number');
   assert.equal((await post('/admin/revoke',{deviceId},headers)).status,200);
   assert.equal((await world()).status,401);
   assert.equal((await post('/admin/logout',{},headers)).status,200);

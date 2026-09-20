@@ -39,7 +39,7 @@ export async function openSession(config,onDisconnect=()=>{}){
   page.on('framenavigated',frame=>{if(frame===page.mainFrame())onDisconnect();});
   return {scope,
    async call(method,args){
-    if(!['listPlayers','listCharacters','readCharacter','executeAction','ping'].includes(method))throw Error('Unsupported bridge method');
+    if(!['listPlayers','listCharacters','readCharacter','readPortrait','executeAction','ping'].includes(method))throw Error('Unsupported bridge method');
     const reply=await page.evaluate(async({method,args,worldId,userId,generation})=>{
      if(!game.ready||!game.socket.connected||game.world.id!==worldId||game.user.id!==userId)throw Error('Service disconnected');
      const api=game.modules.get('foundry-edge')?.api;if(api?.scope.generation!==generation)throw Error('Generation changed');

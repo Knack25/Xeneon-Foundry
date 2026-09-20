@@ -1,5 +1,6 @@
 import { failure, sameScope, validateCommand, OPERATIONS, DETAIL_FIELDS } from './protocol.js';
 import {editCharacter} from './controls.js';
+import {gameplayAction} from './gameplay.js';
 import {createSpellControls,spellActivities,concentrationKey} from './spells.js';
 import { canReadCharacter, requireCharacter, requirePlayer } from './authorization.js';
 
@@ -40,7 +41,8 @@ export function createAdapter({game, getScope, getRollMode}) {
     const items = [...actor.items].map(item => ({id:item.id,name:text(item.name),type:item.type,
       quantity:number(item.system?.quantity),description:text(item.system?.description?.value),
       level:number(item.system?.level),prepared:[1,2].includes(item.system?.prepared),
-      preparationState:number(item.system?.prepared),activities:item.type==='spell'?spellActivities(item):[],
+      preparationState:number(item.system?.prepared),activities:spellActivities(item),school:text(item.system?.school),ritual:item.system?.properties?.has('ritual')===true,concentration:item.system?.properties?.has('concentration')===true,
+      attunement:!!item.system?.attunement,attuned:item.system?.attuned===true,container:text(item.system?.container),
       equipped:item.system?.equipped === true,canEquip:typeof item.system?.equipped==='boolean',uses:{value:number(item.system?.uses?.value),max:number(Number(item.system?.uses?.max))}}));
     const attacks=[...actor.items].filter(item=>item.type==='weapon').flatMap(item=>[...(item.system.activities?.values()??[])].filter(a=>a.type==='attack').map(a=>({
       itemId:item.id,activityId:a.id,name:item.name,activityName:text(a.name),toHit:text(a.labels?.toHit),
@@ -51,7 +53,12 @@ export function createAdapter({game, getScope, getRollMode}) {
     })));
     return {scope:{...scope},revision:++revision,actorId:actor.id,name:actor.name,portraitRef:null,attacks,
       hp:{value:number(data.attributes?.hp?.value),max:number(data.attributes?.hp?.max),temp:number(data.attributes?.hp?.temp) ?? 0},
-      ac:number(data.attributes?.ac?.value),combatId:game.combat?.id??'',details:Object.fromEntries(DETAIL_FIELDS.map(key=>[key,key==='name'?actor.name:text(data.details?.[key])])),
+      ac:number(data.attributes?.ac?.value),combatId:game.combat?.id??'',
+      combat:game.combat?{id:game.combat.id,round:game.combat.round,turn:game.combat.turn,currentName:game.combat.combatant?.hidden?'Hidden combatant':text(game.combat.combatant?.name),yourTurn:game.combat.combatant?.actorId===actor.id&&!game.combat.combatant?.hidden,initiative:game.combat.combatants?.find(c=>c.actorId===actor.id)?.initiative??null}:null,
+      inspiration:data.attributes?.inspiration===true,death:{success:data.attributes?.death?.success??0,failure:data.attributes?.death?.failure??0},
+      hitDice:[...(data.attributes?.hd?.classes??[])].map(c=>({name:c.name,denomination:c.system.hd.denomination,value:c.system.hd.value})),
+      conditions:(globalThis.CONFIG?.statusEffects??[]).filter(s=>s.id&&!['concentrating','encumbered','heavilyEncumbered','exceedingCarryingCapacity'].includes(s.id)).map(s=>({id:s.id,name:game.i18n?.localize(s.name??s.label??s.id)??s.id,active:actor.statuses?.has(s.id)===true})),
+      currency:mapValues(data.currency,number),details:Object.fromEntries(DETAIL_FIELDS.map(key=>[key,key==='name'?actor.name:text(data.details?.[key])])),
       speed:mapValues(data.attributes?.movement, value => typeof value === 'number' ? number(value) : text(value)),
       abilities:mapValues(data.abilities, value => ({value:number(value.value),mod:number(value.mod),save:number(value.save?.value)})),
       skills:mapValues(data.skills, value => ({total:number(value.total),passive:number(value.passive),ability:text(value.ability)})),
@@ -61,7 +68,7 @@ export function createAdapter({game, getScope, getRollMode}) {
       features:items.filter(item => !['weapon','equipment','consumable','tool','loot','container','spell'].includes(item.type)),
       spells:items.filter(item => item.type === 'spell'),
       inventory:items.filter(item => ['weapon','equipment','consumable','tool','loot','container'].includes(item.type)),
-      capabilities:OPERATIONS.filter(op => !(op.startsWith('roll.')||op.startsWith('spell.')) || getRollMode() === 'public')};
+      capabilities:OPERATIONS.filter(op => !(op.startsWith('roll.')||['spell.cast','spell.attack','spell.damage','activity.use','rest.short','rest.long'].includes(op)) || getRollMode() === 'public')};
   }
   async function executeAction(userId, rawCommand) {
     const command = validateCommand(rawCommand);
@@ -76,10 +83,11 @@ export function createAdapter({game, getScope, getRollMode}) {
       const skill = operation === 'roll.skill';
       const key = skill ? 'skill' : 'ability';
       const initiative=operation==='roll.initiative';
+      const special=['roll.death','roll.concentration','roll.hitDie'].includes(operation);
       const weaponRoll=['roll.attack','roll.damage'].includes(operation);
-      if (!weaponRoll && !initiative && !Object.hasOwn(skill ? actor.system.skills ?? {} : actor.system.abilities ?? {}, input[key]))
+      if (!weaponRoll && !initiative && !special && !Object.hasOwn(skill ? actor.system.skills ?? {} : actor.system.abilities ?? {}, input[key]))
         throw failure('unsupported-action', 'This character does not have the selected skill or ability.');
-      const config = weaponRoll||initiative ? {} : {[key]:input[key]};
+      const config = weaponRoll||initiative||special ? {} : {[key]:input[key]};
       // Normal preserves system effects; selected advantage/disadvantage participates in native cancellation rules.
       if (input.mode === 'advantage') config.advantage = true;
       if (input.mode === 'disadvantage') config.disadvantage = true;
@@ -89,7 +97,11 @@ export function createAdapter({game, getScope, getRollMode}) {
           requestId:command.requestId,scope:{...command.scope}}}
       }};
       const method = skill ? 'rollSkill' : operation === 'roll.save' ? 'rollSavingThrow' : 'rollAbilityCheck';
-      if(initiative){
+      if(special){
+        if(operation==='roll.concentration'){if(!concentrationKey(actor))throw failure('unsupported-action','This character is not concentrating.');config.target=input.dc;}
+        if(operation==='roll.hitDie')config.denomination=input.denomination;
+        rolls=await actor[operation==='roll.death'?'rollDeathSave':operation==='roll.concentration'?'rollConcentration':'rollHitDie'](config,{configure:false},message);
+      }else if(initiative){
         if(input.combatId!==(game.combat?.id??''))throw failure('stale-combat','The active encounter changed. Refresh before rolling initiative.');
         const combatants=game.combat?.combatants?.filter(c=>c.actor?.id===actor.id)??[];
         if(combatants.length){
@@ -125,11 +137,14 @@ export function createAdapter({game, getScope, getRollMode}) {
       if (!rolls?.length) throw failure('action-cancelled', 'Foundry cancelled the roll.');
     } else if (operation === 'hp.adjust') {
       await actor.applyDamage(-input.amount);
-    } else if(operation.startsWith('spell.')){
+    } else if(['spell.cast','spell.attack','spell.damage','activity.use'].includes(operation)){
       if(getRollMode()!=='public')throw failure('unsupported-roll-mode','Only public spellcasting is supported.');
       const message={create:true,rollMode:'public',data:{speaker:{actor:actor.id,alias:actor.name,scene:null,token:null},flags:{'foundry-edge':{requestingUserId:user.id,requestingPlayerName:user.name,requestId:command.requestId,scope:{...command.scope}}}}};
-      if(operation==='spell.cast')await spellControls.cast(actor,userId,command,message);
+      if(operation==='spell.cast'||operation==='activity.use')await spellControls.cast(actor,userId,command,message);
       else rolls=await spellControls.roll(actor,userId,operation,input,message);
+    }else if(['rest.short','rest.long','condition.set','concentration.end','inspiration.set'].includes(operation)){
+      if(operation.startsWith('rest.')&&getRollMode()!=='public')throw failure('unsupported-roll-mode','Use public mode for resting.');
+      await gameplayAction({actor,operation,input,message:{data:{speaker:{actor:actor.id,alias:actor.name,scene:null,token:null},flags:{'foundry-edge':{requestingUserId:user.id,requestingPlayerName:user.name,requestId:command.requestId,scope:{...command.scope}}}}},statusEffects:globalThis.CONFIG?.statusEffects??[]});
     } else if(operation==='hp.temp.set') {
       await actor.update({'system.attributes.hp.temp':input.value});
     } else await editCharacter(actor,operation,input);

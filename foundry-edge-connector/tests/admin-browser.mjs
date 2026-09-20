@@ -25,7 +25,7 @@ try{
  await device.locator('#characters').selectOption({label:'Edge Test Scout'});
  await device.locator('#name').filter({hasText:'Edge Test Scout'}).waitFor();
  await device.reload();await device.locator('#name').filter({hasText:'Edge Test Scout'}).waitFor();
- await admin.locator('#refresh').click();const row=admin.locator('.device').filter({has:admin.locator('h3',{hasText:deviceId})});await row.waitFor();
+ await admin.locator('#refresh').click();const row=admin.locator('.device').filter({hasText:deviceId});await row.waitFor();
  await row.locator('select').selectOption({label:'Edge Other Player'});
  await row.getByRole('button',{name:'Save player mapping'}).click();await admin.waitForFunction(()=>document.getElementById('status').textContent.includes('Player mapping saved'));
  await device.locator('#name').filter({hasText:'Edge Other Hero'}).waitFor({timeout:15000});

@@ -30,6 +30,11 @@ test('expanded commands constrain edit fields, expected values, slots and cast r
  ])assert.throws(()=>validateCommand(command(operation,input)),{code:'invalid-command'});
 });
 
+test('session commands accept explicit options and reject extra rest options and invalid state edits',()=>{
+ for(const [op,input]of [['rest.short',{}],['rest.long',{}],['roll.hitDie',{denomination:'d10'}],['roll.death',{mode:'normal'}],['roll.concentration',{mode:'normal',dc:10}],['condition.set',{id:'prone',active:true,expected:false}],['inspiration.set',{value:true,expected:false}],['concentration.end',{expected:'effect'}],['currency.set',{key:'gp',value:42,expected:2}],['item.container',{itemId:'item',value:'pack',expected:''}],['spell.prepare',{itemId:'spell',value:1,expected:0}],['item.attune',{itemId:'item',value:true,expected:false}],['activity.use',{itemId:'item',activityId:'act',slot:'',concentration:''}]])assert.deepEqual(validateCommand(command(op,input)).input,input);
+ for(const [op,input]of [['rest.long',{advanceTime:true}],['roll.hitDie',{denomination:'100d20'}],['roll.concentration',{mode:'normal',dc:0}],['item.container',{itemId:'item',value:'Actor.other',expected:''}],['spell.prepare',{itemId:'spell',value:2,expected:0}],['currency.set',{key:'ownership',value:1,expected:0}]])assert.throws(()=>validateCommand(command(op,input)),{code:'invalid-command'});
+});
+
 test('scope rejects cross-world, cross-server, stale generation and incomplete identities', () => {
   assert.equal(sameScope(scope, { ...scope }), true);
   for (const key of Object.keys(scope)) assert.equal(sameScope(scope, { ...scope, [key]: 'different' }), false);

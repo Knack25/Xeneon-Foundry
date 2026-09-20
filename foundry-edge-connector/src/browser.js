@@ -13,6 +13,7 @@ export class BrowserBridge {
  listPlayers(){return this.call('listPlayers',[]);}
  listCharacters(userId){return this.call('listCharacters',[userId]);}
  readCharacter(userId,actorId){return this.call('readCharacter',[userId,actorId]);}
+ readPortrait(userId,actorId){return this.call('readPortrait',[userId,actorId]);}
  async executeAction(userId,command){
   if(!sameScope(command.scope,this.scope))throw failure('stale-world','The world changed.');
   return this.call('executeAction',[userId,command]);

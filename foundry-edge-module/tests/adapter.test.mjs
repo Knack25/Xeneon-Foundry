@@ -88,6 +88,11 @@ test('snapshot projects data rather than serializing complete Foundry documents'
   assert.equal(snapshot.capabilities.includes('actor.update'),false);
 });
 
+test('Hit Dice class iterators serialize to a plain array',()=>{
+ const {adapter,pc}=fixture();pc.system.attributes.hd={classes:[{name:'Fighter',system:{hd:{denomination:'d10',value:2}}}].values()};
+ assert.deepEqual(adapter.readCharacter('player','pc',scope).hitDice,[{name:'Fighter',denomination:'d10',value:2}]);
+});
+
 test('D&D 5.3.3 saving throw modifiers use the derived save.value field',()=>{
   const {adapter,pc}=fixture();pc.system.abilities.wis.save={value:5,roll:{mode:0}};
   assert.equal(adapter.readCharacter('player','pc',scope).abilities.wis.save,5);

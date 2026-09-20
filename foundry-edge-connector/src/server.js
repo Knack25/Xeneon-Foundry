@@ -51,6 +51,7 @@ function apiHandler({store,bridge,adminSecret,publicUrl,coordinator,localPreview
    else if(route==='/admin/invites'&&method==='POST'){const value=await body(request);await mapping(value);result={code:store.createInvite(value)};}
    else if(route==='/admin/mappings'&&method==='POST'){const value=await body(request);await mapping(value);store.setMapping(value.deviceId,value.scope,value.userId);result={ok:true};}
    else if(route==='/admin/revoke'&&method==='POST'){store.revokeDevice((await body(request)).deviceId);result={ok:true};}
+   else if(route==='/admin/devices/rename'&&method==='POST'){const value=await body(request);store.renameDevice(value.deviceId,value.label);result={ok:true};}
   }else if(route==='/v1/pair'&&method==='POST'){
    const success=auth.limit('pair:'+clientAddress(request,trustedProxies));result=store.redeemInvite((await body(request)).code);success();
   }else if(route.startsWith('/v1/')){
@@ -59,6 +60,11 @@ function apiHandler({store,bridge,adminSecret,publicUrl,coordinator,localPreview
    if(route==='/v1/world'&&method==='GET'){
     const scope=bridge.scope;const userId=scope?store.resolveUser(device.deviceId,scope):null;
     result={scope,userId,status:scope?'connected':'offline'};
+   }else if(/^\/v1\/characters\/[\w-]{1,128}\/portrait$/.test(route)&&method==='GET'){
+    const scope=bridge.scope,userId=store.resolveUser(device.deviceId,scope);
+    const value=await bridge.readPortrait(userId,route.split('/')[3]);
+    if(!sameScope(scope,bridge.scope)||store.resolveUser(device.deviceId,scope)!==userId)throw failure('forbidden','Access changed. Refresh the character list.');
+    result=value??{dataUrl:null};
    }else if((route==='/v1/characters'||/^\/v1\/characters\/[\w-]{1,128}$/.test(route))&&method==='GET'){
     const scope=bridge.scope,userId=store.resolveUser(device.deviceId,scope);
     const value=route==='/v1/characters'?await bridge.listCharacters(userId):await bridge.readCharacter(userId,route.slice(15));
@@ -83,7 +89,7 @@ export function createServer(config) {
       if(api){
         try{await api(request,response);}catch(error){
           const codes={'unauthorized':401,'forbidden':403,'rate-limited':429,'not-found':404,'request-not-found':404,'no-mapping':403,'stale-world':409,'request-conflict':409,'busy':429,'invalid-body':400,'invalid-mapping':400,'invalid-invite':400,'invalid-command':400};
-          const status=codes[error.code]??503;
+          const status=error.code==='invalid-label'?400:codes[error.code]??503;
           response.writeHead(status);response.end(JSON.stringify({error:{code:status===503?'unavailable':error.code,message:status===503?'Connector is unavailable. Try again shortly.':error.message}}));
         }
         return;

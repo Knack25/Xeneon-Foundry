@@ -14,6 +14,9 @@ export class Store {
       CREATE TABLE IF NOT EXISTS requests(device TEXT NOT NULL,id TEXT NOT NULL,digest TEXT NOT NULL,status TEXT NOT NULL,result TEXT,PRIMARY KEY(device,id));`);
     if(!this.db.prepare('PRAGMA table_info(mappings)').all().some(column=>column.name==='revision'))
       this.db.exec('ALTER TABLE mappings ADD COLUMN revision INTEGER NOT NULL DEFAULT 0');
+    const columns=this.db.prepare('PRAGMA table_info(devices)').all();
+    if(!columns.some(column=>column.name==='label'))this.db.exec('ALTER TABLE devices ADD COLUMN label TEXT');
+    if(!columns.some(column=>column.name==='last_seen'))this.db.exec('ALTER TABLE devices ADD COLUMN last_seen INTEGER');
   }
   close(){this.db.close();}
   requireDevice(deviceId){
@@ -21,10 +24,11 @@ export class Store {
     if(!row)throw failure('unauthorized','Pair this device again.');
     return {deviceId:row.id,created:row.created};
   }
-  authenticateDevice(token){
+  authenticateDevice(token,now=Date.now()){
     if(typeof token!=='string'||token.length>128)throw failure('unauthorized','Pair this device again.');
     const row=this.db.prepare('SELECT id FROM devices WHERE token_hash=? AND revoked=0').get(digest(token));
     if(!row)throw failure('unauthorized','Pair this device again.');
+    this.db.prepare('UPDATE devices SET last_seen=? WHERE id=?').run(now,row.id);
     return this.requireDevice(row.id);
   }
   createInvite({scope,userId},now=Date.now()){
@@ -61,5 +65,11 @@ export class Store {
   }
   mappingRevision(deviceId,scope){this.resolveUser(deviceId,scope);return this.db.prepare('SELECT revision FROM mappings WHERE device=? AND instance=? AND world=?').get(deviceId,scope.instanceId,scope.worldId).revision;}
   revokeDevice(deviceId){this.db.prepare('UPDATE devices SET revoked=1 WHERE id=?').run(deviceId);}
-  listDevices(){return this.db.prepare('SELECT id AS deviceId,created,revoked FROM devices ORDER BY created DESC').all().map(device=>({...device,mappings:this.db.prepare('SELECT instance AS instanceId,world AS worldId,user_id AS userId FROM mappings WHERE device=?').all(device.deviceId)}));}
+  renameDevice(deviceId,label){
+    if(typeof label!=='string'||label.length<1||label.length>80||label!==label.trim()||/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u.test(label))
+      throw failure('invalid-label','Use a device name of 1–80 characters without leading or trailing spaces or control characters.');
+    this.requireDevice(deviceId);
+    this.db.prepare('UPDATE devices SET label=? WHERE id=?').run(label,deviceId);
+  }
+  listDevices(){return this.db.prepare('SELECT id AS deviceId,label,last_seen AS lastSeen,created,revoked FROM devices ORDER BY created DESC').all().map(device=>({...device,mappings:this.db.prepare('SELECT instance AS instanceId,world AS worldId,user_id AS userId FROM mappings WHERE device=?').all(device.deviceId)}));}
 }

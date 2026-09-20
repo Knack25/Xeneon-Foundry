@@ -1,6 +1,6 @@
 // Shared by the connector, module and widget; keep this module browser-safe.
 export const PROTOCOL_VERSION = 1;
-export const OPERATIONS = Object.freeze(['hp.adjust', 'hp.temp.set', 'roll.ability', 'roll.save', 'roll.skill', 'roll.attack', 'roll.damage','roll.initiative','item.equip','item.quantity','uses.set','slots.set','resource.set','details.set','spell.cast','spell.attack','spell.damage']);
+export const OPERATIONS = Object.freeze(['hp.adjust', 'hp.temp.set', 'roll.ability', 'roll.save', 'roll.skill', 'roll.attack', 'roll.damage','roll.initiative','item.equip','item.quantity','uses.set','slots.set','resource.set','details.set','spell.cast','spell.attack','spell.damage','rest.short','rest.long','roll.hitDie','roll.death','roll.concentration','condition.set','concentration.end','inspiration.set','activity.use','spell.prepare','currency.set','item.attune','item.container']);
 export const DETAIL_FIELDS=Object.freeze(['name','alignment','appearance','trait','ideal','bond','flaw','age','gender','faith','height','weight','eyes','hair','skin']);
 export const ABILITIES = Object.freeze(['str', 'dex', 'con', 'int', 'wis', 'cha']);
 export const SKILLS = Object.freeze(['acr', 'ani', 'arc', 'ath', 'dec', 'his', 'ins', 'itm', 'inv', 'med', 'nat', 'prc', 'prf', 'per', 'rel', 'slt', 'ste', 'sur']);
@@ -27,7 +27,18 @@ export function validateCommand(raw) {
     || !identifier(raw.requestId) || !identifier(raw.actorId) || !validScope(raw.scope)
     || !OPERATIONS.includes(raw.operation)) invalid();
   const input = raw.input;
-  if(raw.operation==='details.set'){
+  if(raw.operation.startsWith('rest.')){if(!fields(input,[]))invalid();
+  }else if(raw.operation==='roll.death'){if(!fields(input,['mode'])||!['normal','advantage','disadvantage'].includes(input.mode))invalid();
+  }else if(raw.operation==='roll.hitDie'){if(!fields(input,['denomination'])||!['d6','d8','d10','d12'].includes(input.denomination))invalid();
+  }else if(raw.operation==='roll.concentration'){if(!fields(input,['mode','dc'])||!['normal','advantage','disadvantage'].includes(input.mode)||!Number.isInteger(input.dc)||input.dc<1||input.dc>100)invalid();
+  }else if(raw.operation==='condition.set'){if(!fields(input,['id','active','expected'])||!identifier(input.id)||typeof input.active!=='boolean'||typeof input.expected!=='boolean')invalid();
+  }else if(raw.operation==='concentration.end'){if(!fields(input,['expected'])||typeof input.expected!=='string'||input.expected.length>2000)invalid();
+  }else if(['inspiration.set','item.attune','spell.prepare'].includes(raw.operation)){
+   const item=raw.operation!=='inspiration.set';if(!fields(input,item?['itemId','value','expected']:['value','expected'])||(item&&!identifier(input.itemId)))invalid();
+   if(raw.operation==='spell.prepare'){if(![0,1].includes(input.value)||![0,1].includes(input.expected))invalid();}else if(typeof input.value!=='boolean'||typeof input.expected!=='boolean')invalid();
+  }else if(raw.operation==='currency.set'){if(!fields(input,['key','value','expected'])||!['cp','sp','ep','gp','pp'].includes(input.key)||!['value','expected'].every(k=>Number.isSafeInteger(input[k])&&input[k]>=0&&input[k]<=100000000))invalid();
+  }else if(raw.operation==='item.container'){if(!fields(input,['itemId','value','expected'])||!identifier(input.itemId)||!['value','expected'].every(k=>input[k]===''||identifier(input[k])))invalid();
+  }else if(raw.operation==='details.set'){
     if(!fields(input,['field','value','expected'])||!DETAIL_FIELDS.includes(input.field)||!['value','expected'].every(k=>typeof input[k]==='string'&&input[k].length<=2000)||(input.field==='name'&&!input.value.trim()))invalid();
   }else if(['item.equip','item.quantity','uses.set','slots.set','resource.set'].includes(raw.operation)){
     const item=raw.operation.startsWith('item.')||raw.operation==='uses.set';const key=item?'itemId':'key';
@@ -38,7 +49,7 @@ export function validateCommand(raw) {
     else if(!['value','expected'].every(k=>Number.isSafeInteger(input[k])&&input[k]>=0&&input[k]<=100000))invalid();
   }else if(raw.operation==='roll.initiative'){
     if(!fields(input,['mode','combatId'])||!(input.combatId===''||identifier(input.combatId))||!['normal','advantage','disadvantage'].includes(input.mode))invalid();
-  }else if(raw.operation==='spell.cast'){
+  }else if(raw.operation==='spell.cast'||raw.operation==='activity.use'){
     if(!fields(input,['itemId','activityId','slot','concentration'])||!identifier(input.itemId)||!identifier(input.activityId)||typeof input.slot!=='string'||!/^$|^spell[1-9]$|^pact$/.test(input.slot)||typeof input.concentration!=='string'||input.concentration.length>2000)invalid();
   }else if(['spell.attack','spell.damage'].includes(raw.operation)){
     if(!fields(input,['castId','mode'])||!identifier(input.castId)||!(raw.operation==='spell.attack'?['normal','advantage','disadvantage']:['normal','critical']).includes(input.mode))invalid();

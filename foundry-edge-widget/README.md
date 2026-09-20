@@ -27,3 +27,16 @@ Edits carry the value originally shown and reject a detected conflict. Native Fo
 Casting supports attack, damage, healing, saving-throw and utility activities. Targets, templates, saving throws by other creatures and applying effects/damage are resolved in Foundry. Activities requiring separate scene/configuration workflows (such as summoning, enchanting or transforming) are marked for use in Foundry. Recent cast follow-ups last ten minutes within the same service session; use the Foundry chat card after expiry or restart.
 
 Verification: 2026-09-20 live Xeneon Edge Test checks covered standalone/combat initiative, equipment, quantity, uses, resources, slots, alignment, upcasting, attack, critical damage, healing and concentration. No physical iCUE claim is made before hardware arrives.
+
+## Session dashboard
+
+- **Quick Actions:** pin and reorder checks, saves, attacks and supported activities. Favorites are resolved against the current character and saved locally per Foundry instance, world and character.
+- **Session:** short/long rests, individual Hit Dice, inspiration, death saves, conditions and concentration saves/end. Rests honor Foundry permissions and do not advance world time or bastion turns. Death saves appear when eligible.
+- **Combat:** current round, visible current combatant and your initiative, with an optional local turn alert. Hidden combatant names are withheld.
+- **Features:** use supported native activities with Foundry resource consumption. Recent activity cards retain attack/damage/healing follow-ups, including after an automatically deleted consumable.
+- **Spells:** search, preparation toggles and level, school, concentration and ritual filters. Always-prepared spells cannot be unprepared here.
+- **Inventory/Resources:** item search, attunement, moving items into existing containers and currency edits. Container cycles and foreign-character containers are rejected.
+- **Display:** per-character theme, font size and turn-alert preference. Portraits use authenticated, bounded same-origin raster delivery; unsupported images use the fallback.
+- **Administration:** friendly device names and last-seen timestamps alongside loaded-world connection status and player mappings.
+
+The complete live browser flow passed on 2026-09-20 in the disposable test world, including native rests, Hit Dice, death saves, consumable use and follow-up healing, spell preparation, attunement, containers, currency, portrait display and device renaming. Physical Large/XL touch behavior still needs the Edge hardware.

@@ -40,4 +40,8 @@ Start with `docker compose -p foundry-edge up -d --no-build`. The host port bind
 - Browser profiles are ephemeral. Client preferences reset on reconnect; connector rendering settings are reapplied. Game state stays in Foundry.
 - Test upgrades against the supported Foundry/D&D versions. Keep matching database backups for rollback if a future schema migration is incompatible.
 
-Target: Foundry **14.367**, D&D5e **5.3.3**. This is a deployed test-world beta. Protected portraits, second-world transition checks and physical iCUE release remain pending. See [compatibility evidence](../docs/foundry/compatibility-14-5.3.3.md).
+Device administration supports friendly names and last-seen timestamps. The additive SQLite migration preserves existing pairings. Only successful device authentication updates last seen; administrator reads do not. Renaming requires the administrator session and CSRF token.
+
+Authenticated character portraits are available through `/v1/characters/:id/portrait`, with current mapping and scope checks. The module restricts delivery to bounded same-origin raster images.
+
+Target: Foundry **14.367**, D&D5e **5.3.3**. This is a deployed test-world beta. Second-world transition checks and physical iCUE release remain pending. See [compatibility evidence](../docs/foundry/compatibility-14-5.3.3.md).
