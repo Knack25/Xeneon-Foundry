@@ -1,8 +1,9 @@
 import { createServer as createHttpServer } from 'node:http';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
+import {readFile} from 'node:fs/promises';
 import { PROTOCOL_VERSION,failure,sameScope,validateConnectorUrl } from './protocol.js';
-import {AdminAuth} from './auth.js';
+import {AdminAuth,clientAddress} from './auth.js';
 
 async function body(request){
  if(!request.headers['content-type']?.startsWith('application/json'))throw failure('invalid-body','JSON is required.');
@@ -12,8 +13,10 @@ async function body(request){
  catch{throw failure('invalid-body','Invalid JSON request.');}
 }
 
-function apiHandler({store,bridge,adminSecret,publicUrl,coordinator}){
- const auth=new AdminAuth(adminSecret,new URL(validateConnectorUrl(publicUrl)).origin);
+function apiHandler({store,bridge,adminSecret,publicUrl,coordinator,localPreview=false,trustedProxies=[]}){
+ const localUrl=new URL(publicUrl);
+ const allowLocal=localPreview&&localUrl.origin==='http://127.0.0.1:8791'&&localUrl.href==='http://127.0.0.1:8791/';
+ const auth=new AdminAuth(adminSecret,allowLocal?localUrl.origin:new URL(validateConnectorUrl(publicUrl)).origin);
  async function mapping(value){
   if(!sameScope(value.scope,bridge.scope)||!(await bridge.listPlayers()).some(p=>p.id===value.userId))
    throw failure('invalid-mapping','Select a player in the connected world.');
@@ -21,6 +24,12 @@ function apiHandler({store,bridge,adminSecret,publicUrl,coordinator}){
  }
  return async(request,response)=>{
   const route=request.url,method=request.method;
+  const assets={'/admin':['admin.html','text/html'],'/admin/':['admin.html','text/html'],'/admin.js':['admin.js','text/javascript'],'/admin.css':['admin.css','text/css']};
+  if(Object.hasOwn(assets,route)&&method==='GET'){
+   const [name,type]=assets[route];response.setHeader('Content-Type',type);
+   response.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
+   response.end(await readFile(new URL('../public/'+name,import.meta.url)));return;
+  }
   if(route.startsWith('/v1/')){
    response.setHeader('Access-Control-Allow-Origin','*');
    response.setHeader('Access-Control-Allow-Headers','Authorization, Content-Type');
@@ -28,16 +37,21 @@ function apiHandler({store,bridge,adminSecret,publicUrl,coordinator}){
    if(method==='OPTIONS'){response.writeHead(204);response.end();return;}
   }
   let result;
-  if(route==='/admin/login'&&method==='POST')result=auth.login((await body(request)).secret,request,response);
+  if(route==='/admin/login'&&method==='POST')result=auth.login((await body(request)).secret,request,response,clientAddress(request,trustedProxies));
   else if(route.startsWith('/admin/')){
-   auth.require(request);
-   if(route==='/admin/state'&&method==='GET')result={scope:bridge.scope,players:bridge.scope?await bridge.listPlayers():[],devices:store.listDevices()};
+   const session=auth.require(request);
+   if(route==='/admin/session'&&method==='GET')result={csrf:session.csrf};
+   else if(route==='/admin/logout'&&method==='POST'){auth.logout(request,response);result={ok:true};}
+   else if(route==='/admin/state'&&method==='GET'){
+    const scope=bridge.scope,players=scope?await bridge.listPlayers():[];
+    if(scope&&!sameScope(scope,bridge.scope))throw failure('stale-world','The world changed. Refresh administration.');
+    result={scope,players,devices:store.listDevices()};
+   }
    else if(route==='/admin/invites'&&method==='POST'){const value=await body(request);await mapping(value);result={code:store.createInvite(value)};}
    else if(route==='/admin/mappings'&&method==='POST'){const value=await body(request);await mapping(value);store.setMapping(value.deviceId,value.scope,value.userId);result={ok:true};}
    else if(route==='/admin/revoke'&&method==='POST'){store.revokeDevice((await body(request)).deviceId);result={ok:true};}
   }else if(route==='/v1/pair'&&method==='POST'){
-   // Socket address only: forwarded headers cannot bypass the limit.
-   auth.limit('pair:'+request.socket.remoteAddress);result=store.redeemInvite((await body(request)).code);
+   const success=auth.limit('pair:'+clientAddress(request,trustedProxies));result=store.redeemInvite((await body(request)).code);success();
   }else if(route.startsWith('/v1/')){
    const match=/^Bearer ([A-Za-z0-9_-]{43})$/.exec(request.headers.authorization??'');
    const device=store.authenticateDevice(match?.[1]);
@@ -57,7 +71,7 @@ function apiHandler({store,bridge,adminSecret,publicUrl,coordinator}){
  };
 }
 
-// Deliberately diagnostic-only: no Foundry data, login or command endpoints yet.
+// Without configuration, expose only the public diagnostic health endpoint.
 export function createServer(config) {
   const api=config?apiHandler(config):null;
   const server=createHttpServer(async(request,response) => {
@@ -85,7 +99,7 @@ export function createServer(config) {
       response.end(JSON.stringify({error:{code:'method-not-allowed'}}));
       return;
     }
-    response.end(JSON.stringify({service:'foundry-edge-connector',protocol:PROTOCOL_VERSION,status:'diagnostic'}));
+    response.end(JSON.stringify({service:'foundry-edge-connector',protocol:PROTOCOL_VERSION,status:config?'running':'diagnostic'}));
   });
   server.requestTimeout=15000;server.headersTimeout=10000;
   return server;

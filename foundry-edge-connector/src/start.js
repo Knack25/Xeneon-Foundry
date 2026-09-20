@@ -1,0 +1,22 @@
+import {readFile,mkdir} from 'node:fs/promises';
+import path from 'node:path';
+import {Store} from './store.js';
+import {BrowserBridge} from './browser.js';
+import {startBrowser} from './runtime-session.js';
+import {Coordinator} from './commands.js';
+import {createApplication} from './application.js';
+import {validateConnectorUrl} from './protocol.js';
+const config=JSON.parse(await readFile(process.env.FOUNDRY_CONFIG_FILE??'/run/secrets/foundry.json','utf8'));
+const adminSecret=(await readFile(process.env.ADMIN_KEY_FILE??'/run/secrets/admin-key.txt','utf8')).trim();
+const publicUrl=validateConnectorUrl(process.env.PUBLIC_URL);
+if(new URL(publicUrl).pathname!=='/')throw Error('PUBLIC_URL must use a dedicated hostname without a path.');
+const dataDir=process.env.DATA_DIR??'/data';await mkdir(dataDir,{recursive:true});
+const store=new Store(path.join(dataDir,'connector.sqlite')),bridge=new BrowserBridge();
+const coordinator=new Coordinator({store,bridge});
+const service=startBrowser({bridge,config,onStatus:status=>console.log('Foundry service: '+status)});
+const trustedProxies=(process.env.TRUSTED_PROXY_IPS??'').split(',').map(value=>value.trim()).filter(Boolean);
+const server=createApplication({store,bridge,coordinator,adminSecret,publicUrl,trustedProxies});
+server.listen(8790,'0.0.0.0',()=>console.log('Foundry Edge listening on port 8790.'));
+let closing=false;
+async function stop(){if(closing)return;closing=true;await service.stop();server.close(()=>{store.close();process.exit(0);});}
+for(const signal of ['SIGINT','SIGTERM'])process.once(signal,()=>void stop());

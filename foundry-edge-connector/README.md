@@ -1,9 +1,43 @@
-# Foundry Edge connector (early diagnostic)
+# Foundry Edge connector
 
-Requires Node 24+. Run `npm test`, then `node src/server.js`.
+Node 24 service for individually paired devices, active-world player mappings, authorized character reads, native D&D actions and a supervised Foundry browser. The service account is a dedicated Player/Trusted Player with ownership of supported PCs. No GM login is used by the deployed connector.
 
-The current service binds only `127.0.0.1:8790` (`PORT` can override the port). It provides a public, non-sensitive `/health` endpoint for the Edge connection check. Put it behind your existing HTTPS reverse proxy for remote hardware testing, stripping any configured path prefix before forwarding. The health endpoint permits cross-origin reads but never credentials.
+Hosted test deployment: **https://edge.foundry.jewinashoe.org**. Administration: `/admin`. Only `xeneon-edge-test` is configured; loading an unconfigured world disconnects character access.
 
-Device pairing, Foundry browser supervision, subscriptions and remote character commands are not implemented in this diagnostic. Do not expose the Foundry module's local probe API through a generic HTTP/script endpoint.
+## Development
 
-See the approved spec and implementation plan under `docs/superpowers/` and the compatibility record in `docs/foundry/`.
+Run `npm ci`, then `npm test`. The repository launchers use separately protected credential files. `node src/server.js` without configuration still runs only the loopback health diagnostic.
+
+`tests/admin-browser.mjs` exercises the actual browser flow against disposable test fixtures. Set `PREVIEW_ADMIN_KEY_FILE` to a protected administrator-key file and optionally `PREVIEW_URL` to the hosted origin. It creates and revokes its own device. It expects Edge Test Player, Edge Other Player, Edge Test Scout and Edge Other Hero fixtures.
+
+## Container deployment
+
+Build from the repository root: `docker build -f foundry-edge-connector/Dockerfile -t foundry-edge:0.1.0 .`. The Dockerfile-specific allowlist excludes secrets, databases, browser state and unrelated projects. Base image digests are pinned; npm uses the lockfile.
+
+Create `secrets/foundry.json` alongside `compose.yaml`:
+
+```json
+{
+  "url": "https://foundry.example.org",
+  "worlds": {
+    "world-id": { "userId": "SERVICE_USER_ID", "password": "SERVICE_PASSWORD" }
+  }
+}
+```
+
+Create a separate random administrator key of at least 32 characters in `secrets/admin-key.txt`. These are read-only mounts, never image layers or public world settings. Verify the image user with `docker run --rm --entrypoint id foundry-edge:0.1.0`; the pinned image uses UID/GID **1001**. Give this user read access to the secret files (mode600), and keep the host secret directory private.
+
+Set `PUBLIC_URL` and the Traefik hostname in `compose.yaml`. Set `TRUSTED_PROXY_IPS` in an adjacent `.env` file to the exact proxy source address seen by this container. This deployment uses Docker gateway `172.16.5.1` because Traefik runs in host networking. Recheck it after recreating the network. Forwarded headers are ignored unless the socket peer is explicitly trusted; the nearest forwarded client address is validated. Login/pairing limits allow five failed attempts per minute per address; successful requests do not consume that limit.
+
+Start with `docker compose -p foundry-edge up -d --no-build`. The host port binds only to loopback; Traefik exposes HTTPS. `/health` reports liveness; `/ready` returns503 while Foundry is disconnected. The browser has no exposed debugging port and uses a small viewport, no-canvas/low-motion client settings and bounded reconnect backoff. Chromium's [WebGL-only software fallback](https://chromium.googlesource.com/chromium/src/+/HEAD/docs/gpu/swiftshader.md) avoids the excessive CPU observed when emulating all GPU compositing.
+
+## Operations
+
+- Use `/admin` to issue single-use 10-minute codes, map devices in the loaded world and revoke devices. Give players only their pairing codes.
+- Back up `edge-data` and private secrets. For a consistent backup, stop only the connector, archive its named volume, then start it. Do not edit live SQLite files.
+- Rotate the administrator key by replacing its private file and recreating the connector. Admin sessions expire; device pairings persist. Rotate service passwords in Foundry and their config entries together, then recreate the connector.
+- Browser replacement changes connection generation. Unacknowledged actions remain unknown and never automatically replay. Completed request status and mappings persist in SQLite.
+- Browser profiles are ephemeral. Client preferences reset on reconnect; connector rendering settings are reapplied. Game state stays in Foundry.
+- Test upgrades against the supported Foundry/D&D versions. Keep matching database backups for rollback if a future schema migration is incompatible.
+
+Target: Foundry **14.367**, D&D5e **5.3.3**. This is a deployed test-world beta. Protected portraits, second-world transition checks and physical iCUE release remain pending. See [compatibility evidence](../docs/foundry/compatibility-14-5.3.3.md).

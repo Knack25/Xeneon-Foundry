@@ -1,0 +1,29 @@
+services:
+  foundry-edge:
+    image: foundry-edge:0.1.0
+    build:
+      context: ..
+      dockerfile: foundry-edge-connector/Dockerfile
+    init: true
+    restart: unless-stopped
+    shm_size: 512mb
+    mem_limit: 1536m
+    environment:
+      PUBLIC_URL: https://edge.foundry.jewinashoe.org
+      TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:-}
+    ports:
+      - "127.0.0.1:8790:8790"
+    volumes:
+      - edge-data:/data
+      - ./secrets/foundry.json:/run/secrets/foundry.json:ro
+      - ./secrets/admin-key.txt:/run/secrets/admin-key.txt:ro
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.foundry-edge.rule: "Host(`edge.foundry.jewinashoe.org`)"
+      traefik.http.routers.foundry-edge.entrypoints: websecure
+      traefik.http.routers.foundry-edge.tls.certresolver: letsencrypt
+      traefik.http.services.foundry-edge.loadbalancer.server.port: "8790"
+volumes:
+  edge-data:

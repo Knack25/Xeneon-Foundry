@@ -2,6 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Store} from '../src/store.js';
 import {Coordinator} from '../src/commands.js';
+import {mkdtemp,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 const scope={instanceId:'i',worldId:'w',generation:'g'};
 const command={requestId:'r',scope,actorId:'hero',operation:'hp.adjust',input:{amount:-1}};
 function fixture(executeAction){
@@ -58,4 +61,19 @@ test('a queued action is rejected when its player mapping changes',async()=>{
   await new Promise(r=>setImmediate(r));if(users.length>1)release();
   assert.equal((await queued).status,'rejected');assert.deepEqual(users,['player']);
  }finally{f.store.close();}
+});
+
+test('a dispatched request in a reopened SQLite file stays unknown and is never replayed',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'edge-restart-')),filename=join(dir,'state.sqlite');
+ let store=new Store(filename),calls=0;
+ const device=store.redeemInvite(store.createInvite({scope,userId:'player'}));
+ const bridge={scope,executeAction:()=>{calls++;return new Promise(()=>{});}};
+ const before=new Coordinator({store,bridge});void before.dispatch(device.deviceId,command);
+ await new Promise(r=>setImmediate(r));assert.equal(calls,1);
+ store.close();store=new Store(filename);
+ try{
+  const after=new Coordinator({store,bridge});
+  assert.equal(after.getRequest(device.deviceId,command.requestId).status,'unknown');
+  assert.equal((await after.dispatch(device.deviceId,command)).status,'unknown');assert.equal(calls,1);
+ }finally{store.close();await rm(dir,{recursive:true,force:true});}
 });

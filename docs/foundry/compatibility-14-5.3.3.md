@@ -1,6 +1,18 @@
 # Foundry Edge compatibility record
 
-Status: live test-world character actions and the local web preview are verified. Standalone VPS deployment and physical iCUE compatibility remain pending.
+Status: native test-world actions, local/hosted dashboards, administration and VPS browser operation are verified. Physical iCUE compatibility and the complete release matrix remain pending.
+
+## Hosted administration and multiplayer checkpoint
+
+Deployed isolated container `foundry-edge-foundry-edge-1` under `/opt/foundry-edge`, with separate SQLite volume and private service/admin credentials. HTTPS hostname: `edge.foundry.jewinashoe.org`. No Foundry restart or campaign modification. Node24.21.0 and Playwright1.63.0 image digests are pinned. Certificate validation and public routing passed; the initial browser check required a temporary hostname override while this PC cached the previous DNS miss.
+
+Live checks passed: two-player PC isolation, owned-NPC exclusion, same-player two-device synchronization, ownership removal blocking reads/actions despite retained service ownership, selection persistence after reload, admin remapping updating the visible PCs, revocation clearing the sheet and logout invalidating the admin session. Original character values/ownership were restored; only disposable test devices were revoked.
+
+Linux native HP/temp and skill-roll checks passed. After container recreation, pairing and completed request history persisted, generation changed, duplicate requests returned the stored result and new old-generation commands were rejected. A separate SQLite-file reopening test verifies unacknowledged dispatched requests stay unknown and never replay.
+
+All-GPU SwiftShader consumed about200% CPU even with no-canvas. Disabling WebGL prevented Foundry initialization. Chromium's WebGL-only fallback restored native operation at about355–357MiB RAM and17–19% CPU in post-action samples. Client-only settings are noCanvas, maxFPS10, photosensitive mode and a320×240 viewport.
+
+Deployment review identified proxy-wide rate limiting. The fix trusts forwarding only from an explicitly configured socket peer (current gateway172.16.5.1); untrusted/malformed forwarding is ignored. Successful pairings do not consume the failed-attempt limit. Regression tests pass.
 
 ## Latest live evidence — 2026-09-19
 

@@ -1,0 +1,11 @@
+**
+!foundry-edge-connector/
+!foundry-edge-connector/package.json
+!foundry-edge-connector/package-lock.json
+!foundry-edge-connector/src/
+!foundry-edge-connector/src/**
+!foundry-edge-connector/public/
+!foundry-edge-connector/public/**
+!foundry-edge-widget/
+!foundry-edge-widget/widget/
+!foundry-edge-widget/widget/**

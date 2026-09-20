@@ -22,13 +22,17 @@ export async function openSession(config,onDisconnect=()=>{}){
   if(!user||user.role>2)throw failure('invalid-service','A dedicated Player or Trusted Player service account is required.');
   const login=await http.post('/join',{data:{action:'join',userId:account.userId,password:account.password}});
   if(!login.ok()||(await login.json()).status!=='success')throw failure('login-failed','Service login failed. Check the secret file.');
-  browser=await chromium.launch({...(config.channel?{channel:config.channel}:{}),headless:true,args:['--use-angle=swiftshader','--enable-unsafe-swiftshader']});
-  const context=await browser.newContext({storageState:await http.storageState()});const page=await context.newPage();
+  browser=await chromium.launch({channel:config.channel??'chromium',headless:true,args:['--use-gl=angle','--use-angle=swiftshader-webgl','--enable-unsafe-swiftshader']});
+  const context=await browser.newContext({storageState:await http.storageState(),viewport:{width:320,height:240},reducedMotion:'reduce'});
+  // Foundry 14's client-only setting; this service does not render or control scenes.
+  await context.addInitScript(({origin})=>{if(location.origin===origin){localStorage.setItem('core.noCanvas','true');localStorage.setItem('core.maxFPS','10');localStorage.setItem('core.photosensitiveMode','true');}},{origin:new URL(url).origin});
+  const page=await context.newPage();
   page.setDefaultTimeout(15000);
   await page.goto(url+'/game',{waitUntil:'domcontentloaded',timeout:60000});
   await page.waitForFunction(()=>globalThis.game?.ready&&game.modules.get('foundry-edge')?.api,null,{timeout:60000});
   const scope=await page.evaluate(({worldId,userId})=>{
    if(game.world.id!==worldId||game.user.id!==userId)throw Error('Runtime identity changed');
+   if(game.settings.get('core','noCanvas')!==true)throw Error('Service canvas must be disabled');
    return game.modules.get('foundry-edge').api.scope;
   },{worldId,userId:account.userId});
   browser.on('disconnected',onDisconnect);page.on('close',onDisconnect);page.on('crash',onDisconnect);

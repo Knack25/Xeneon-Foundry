@@ -1,5 +1,15 @@
 # Live web preview
 
+## Hosted dashboard and administration
+
+The always-on test service is **https://edge.foundry.jewinashoe.org**. It runs on the VPS without this PC or a player's Foundry browser staying open. Local preview pairings do not transfer; pair the hosted browser once.
+
+Double-click **Manage Hosted Foundry Edges.cmd**. It opens hosted administration and displays the administrator key in its terminal. Sign in, select **Edge Test Player**, and create a pairing code. Enter that code on the hosted dashboard. The key stays in a protected local file and is never included in the URL.
+
+Administration can change a device's player mapping or revoke it. Revocation clears its sheet on the next poll. Edge Test Player owns Hero and Scout; Edge Other Player owns Other Hero. An owned test NPC is excluded from the selector.
+
+## Local development preview
+
 Run **Start Foundry Preview.cmd** from the repository. It opens <http://127.0.0.1:8791> and displays a short-lived pairing code. Enter that code once. Pairing persists in this browser's local storage; use **Forget device** to remove it.
 
 This development launcher uses the protected test-account file prepared locally during setup. No password belongs in source control or a URL. It runs only on this PC, binds to loopback, and connects only to the configured `xeneon-edge-test` world. The preview's background Foundry browser uses **Edge Service**, a Trusted Player account. The player's ordinary browser is not required.
@@ -16,4 +26,6 @@ It polls Foundry every three seconds. Changing the world or losing access clears
 - Browser regression: ownership loss hides the previous sheet before a delayed replacement finishes loading.
 - Native adapter separately verified damage absorption, healing limit, check/save/skill rolls, and private-mode rejection.
 
-This is a working development preview, not the completed standalone deployment. Still pending: full admin UI, protected portraits, additional test characters and two-player/world-transition acceptance checks, Linux browser supervision/deployment, release packaging, and physical Large/XL iCUE testing. The widget build still opens the connection diagnostic; this preview has its own entry point. Browser local storage does not establish compatibility with iCUE storage.
+Hosted checks passed switching/reload persistence, cross-player remapping, live revocation and logout. Linux native HP/roll actions and container restart persistence passed. Initial HTTPS browser validation used a temporary test-browser DNS override while negative caches expired; certificate validation remained enabled.
+
+Still pending: protected portraits, second-world transitions, release packaging and physical Large/XL iCUE testing. The widget build still opens the connection diagnostic. Browser storage does not establish iCUE storage compatibility.

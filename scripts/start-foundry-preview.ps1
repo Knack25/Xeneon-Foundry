@@ -1,6 +1,7 @@
 param(
   [string]$SecretFile,
-  [switch]$NoBrowser
+  [switch]$NoBrowser,
+  [switch]$Admin
 )
 $ErrorActionPreference = 'Stop'
 $previewRoot = Split-Path -Parent $PSScriptRoot
@@ -19,11 +20,17 @@ if (-not $previewListener) {
 }
 $previewReady = Join-Path $previewRuntime 'preview-ready.json'
 Write-Host 'Opening the live test-world preview. First pairing may take up to a minute.'
-if (-not $NoBrowser) { Start-Process 'http://127.0.0.1:8791' }
+if (-not $NoBrowser) { if ($Admin) { Start-Process 'http://127.0.0.1:8791/admin' } else { Start-Process 'http://127.0.0.1:8791' } }
 for ($previewAttempt = 0; $previewAttempt -lt 60; $previewAttempt++) {
   if (Test-Path -LiteralPath $previewReady) {
     $previewInfo = Get-Content -LiteralPath $previewReady -Raw | ConvertFrom-Json
     if ($previewInfo.expires -gt [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()) {
+      if ($Admin) {
+        $previewAdminKey = Join-Path $previewRuntime 'admin-key.txt'
+        if (-not (Test-Path -LiteralPath $previewAdminKey)) { Start-Sleep -Seconds 1; continue }
+        Write-Host ('Administrator key: ' + (Get-Content -LiteralPath $previewAdminKey -Raw).Trim())
+        return
+      }
       Write-Host ('Pairing code (10 minutes): ' + $previewInfo.code)
       return
     }

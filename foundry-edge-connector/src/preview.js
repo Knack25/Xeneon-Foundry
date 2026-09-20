@@ -17,14 +17,18 @@ if(accounts.worldId!=='xeneon-edge-test')throw Error('Preview bootstrap is restr
 await mkdir(runtimeDir,{recursive:true});
 const store=new Store(path.join(runtimeDir,'preview.sqlite'));
 const bridge=new BrowserBridge(),coordinator=new Coordinator({store,bridge});
+const adminFile=path.join(runtimeDir,'admin-key.txt');
+let adminSecret;
+try{adminSecret=(await readFile(adminFile,'utf8')).trim();}
+catch(error){if(error.code!=='ENOENT')throw error;adminSecret=randomBytes(32).toString('base64url');await writeFile(adminFile,adminSecret,{flag:'wx',mode:0o600});}
 const controller=startBrowser({bridge,config:{url:accounts.url,channel:process.platform==='win32'?'msedge':undefined,worlds:{[accounts.worldId]:{userId:accounts.service.id,password:accounts.service.password}}},onStatus:status=>console.log('Foundry service: '+status)});
-const api=createServer({store,bridge,coordinator,adminSecret:randomBytes(32).toString('base64url'),publicUrl:'https://localhost'});
+const api=createServer({store,bridge,coordinator,adminSecret,publicUrl:'http://127.0.0.1:8791',localPreview:true});
 const widget=fileURLToPath(new URL('../../foundry-edge-widget/widget/',import.meta.url));
 const files={'/':['preview.html','text/html'],'/dashboard.css':['dashboard.css','text/css'],'/src/app.js':['src/app.js','text/javascript'],'/src/state.js':['src/state.js','text/javascript']};
 const server=httpServer(async(req,res)=>{
  // Reject DNS rebinding; no forwarded-host trust in the local preview.
  if(!['127.0.0.1:8791','localhost:8791'].includes(req.headers.host)){res.writeHead(403);res.end();return;}
- if(req.url?.startsWith('/v1/')||req.url==='/health'){api.emit('request',req,res);return;}
+ if(req.url?.startsWith('/v1/')||req.url==='/health'||['/admin','/admin/','/admin.js','/admin.css'].includes(req.url)||req.url?.startsWith('/admin/')){api.emit('request',req,res);return;}
  const file=files[req.url];
  if(!file||req.method!=='GET'){res.writeHead(404);res.end();return;}
  try{res.writeHead(200,{'Content-Type':file[1],'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"});res.end(await readFile(path.join(widget,file[0])));}
