@@ -2,6 +2,8 @@
 
 Targets Foundry 14.367 / D&D 5e 5.3.3. The companion module and standalone connector are deployed and verified in the disposable Xeneon Edge Test world. The connector handles pairing, authenticated requests, durable request coordination and the unattended service browser; this module checks current player/service ownership and invokes native character APIs.
 
+The designated service session also exposes a minimal presence report containing only the current world scope, service-user ID and active user IDs/roles. The connector uses it for update safety; disconnected, stale or malformed presence never means the world is empty. This does not install or enable updates.
+
 ## Build and install into a test world
 
 1. With Node 24+ and Python 3.9+, run `npm test` and `npm run build` here.

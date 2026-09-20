@@ -46,4 +46,10 @@ Authenticated character portraits are available through `/v1/characters/:id/port
 
 Target: Foundry **14.367**, D&D5e **5.3.3**. This is a deployed test-world beta. Second-world transition checks and physical iCUE release remain pending. See [compatibility evidence](../docs/foundry/compatibility-14-5.3.3.md).
 
-The connector reports release identity but does not check for or install updates. It has no Docker socket or updater control channel. No production Foundry module `manifest`/`download` URLs exist until a signed test-channel release is published and exercised.
+## Update safety foundation
+
+The service session reports active Foundry users every three seconds; a report older than fifteen seconds, a disconnect or malformed data is unknown rather than an empty world. A maintenance attempt requires five uninterrupted minutes with no active user except the configured service account. Players and GMs reset the timer.
+
+Open dashboard confirmations hold a 45-second device-owned lease renewed every 15 seconds. Normal sheet polling does not. Accepted, dispatched and outcome-unknown durable commands block maintenance. Once maintenance admission closes, new commands receive `maintenance` with HTTP 503 and are not inserted, while an existing request ID remains readable for safe idempotent status handling.
+
+This is only a safety gate. The connector does not check for, download or install releases, and `automaticInstall.enabled` remains `false`. It has no production signing key/source, updater polling loop, Docker socket, updater control channel, staging, replacement, backup/recovery or update UI. No production Foundry module `manifest`/`download` URLs exist until a signed test-channel release is published and exercised.

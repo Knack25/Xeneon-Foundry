@@ -15,6 +15,8 @@ The build writes `dist/` and grants network permission only for the supplied hos
 
 Do not put credentials in the address. The connector `/health` response must contain `service: "foundry-edge-connector"`, `protocol: 1` and a public `release` object. The current release object explicitly reports `automaticInstall.enabled: false`; the dashboard does not yet reload itself for releases.
 
+Opening an action confirmation creates a 45-second device-owned activity lease and renews it every 15 seconds until confirm, cancel, world/character change or page exit. A lease failure closes the dialog and asks the player to retry, preventing maintenance from treating an open confirmation as idle. Background sheet polling creates no lease. The lease is only a maintenance blocker; it does not enable an updater or expose administrative controls.
+
 ## Expanded web controls
 
 - **Spells:** cast supported prepared spell activities, choose a standard or pact slot and upcast level. Foundry consumes resources and handles concentration. Recent casts provide separate attack, damage and healing rolls without consuming another slot.
