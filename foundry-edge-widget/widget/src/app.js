@@ -2,6 +2,7 @@ import {preferencesKey,readPreferences,savePreferences,toggleFavorite,moveFavori
 import {reduce} from './state.js';
 const $=id=>document.getElementById(id),storageKey='foundry-edge-preview:'+location.origin;
 let token=localStorage.getItem(storageKey),state={scope:null,characters:[],selected:null,snapshot:null},tab='abilities',busy=false,polling=false,epoch=0,dialogAction=null,lastRequest=null;
+let activityLease=null,activityTimer=null,leasing=false;
 let filterText='',spellFilter='all',schoolFilter='',prefs={},portraitKey='',portraitAt=0,lastTurn='';
 const names={str:'Strength',dex:'Dexterity',con:'Constitution',int:'Intelligence',wis:'Wisdom',cha:'Charisma',acr:'Acrobatics',ani:'Animal Handling',arc:'Arcana',ath:'Athletics',dec:'Deception',his:'History',ins:'Insight',itm:'Intimidation',inv:'Investigation',med:'Medicine',nat:'Nature',prc:'Perception',prf:'Performance',per:'Persuasion',rel:'Religion',slt:'Sleight of Hand',ste:'Stealth',sur:'Survival'};
 const text=(tag,value,className)=>{const e=document.createElement(tag);e.textContent=value??'—';if(className)e.className=className;return e;};
@@ -11,19 +12,42 @@ async function api(path,data){
  const response=await fetch(path,{method:data?'POST':'GET',headers:{...(token?{Authorization:`Bearer ${token}`} :{}),...(data?{'Content-Type':'application/json'}:{})},...(data?{body:JSON.stringify(data)}:{}),credentials:'omit',cache:'no-store',signal:AbortSignal.timeout(15000)});
  const value=await response.json();if(!response.ok)throw Object.assign(Error(value.error?.message??'Connection failed.'),{code:value.error?.code});return value;
 }
-function clear(){epoch++;state=reduce(state,{type:'clear'});$('dashboard').hidden=true;$('sheet').replaceChildren();$('characters').replaceChildren();$('action-dialog').close();dialogAction=null;portraitKey='';$('portrait-image').hidden=true;$('portrait-image').removeAttribute('src');}
+async function activityRequest(method,data){
+ const response=await fetch('/v1/activity-leases',{method,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(data),credentials:'omit',cache:'no-store',signal:AbortSignal.timeout(15000)});
+ if(response.ok)return response.status===204?null:response.json();
+ let value;try{value=await response.json();}catch{}
+ throw Object.assign(Error(value?.error?.message??'Connection failed.'),{code:value?.error?.code});
+}
+async function releaseActivity(){
+ const lease=activityLease;activityLease=null;if(activityTimer!==null)clearInterval(activityTimer);activityTimer=null;
+ if(!lease||!token)return;
+ try{await activityRequest('DELETE',{leaseId:lease.leaseId});}catch{}
+}
+function dismissAction(){if($('action-dialog').open)$('action-dialog').close();dialogAction=null;void releaseActivity();}
+async function acquireActivity(scope){
+ await releaseActivity();
+ const lease={leaseId:crypto.randomUUID(),kind:'confirmation',scope:{...scope},ttlMs:45000};
+ await activityRequest('POST',lease);activityLease=lease;
+ activityTimer=setInterval(async()=>{
+  if(activityLease!==lease)return;
+  try{await activityRequest('PUT',lease);}catch{
+   if(activityLease===lease){dismissAction();message('Connection changed. Open the action again.');}
+  }
+ },15000);
+}
+function clear(){epoch++;dismissAction();state=reduce(state,{type:'clear'});$('dashboard').hidden=true;$('sheet').replaceChildren();$('characters').replaceChildren();portraitKey='';$('portrait-image').hidden=true;$('portrait-image').removeAttribute('src');}
 const selectionKey=()=>storageKey+':'+state.scope.instanceId+':'+state.scope.worldId;
 async function refresh(){
  if(!token||polling)return;polling=true;const version=epoch;
  try{
   const world=await api('/v1/world');if(version!==epoch)return;
-  if(JSON.stringify(state.scope)!==JSON.stringify(world.scope)){$('dashboard').hidden=true;$('sheet').replaceChildren();$('action-dialog').close();}
+  if(JSON.stringify(state.scope)!==JSON.stringify(world.scope)){$('dashboard').hidden=true;$('sheet').replaceChildren();dismissAction();}
   state=reduce(state,{type:'world',scope:world.scope});
   if(!world.scope){clear();message('Waiting for a configured Foundry world.');return;}
   const list=await api('/v1/characters');if(version!==epoch||JSON.stringify(list.scope)!==JSON.stringify(state.scope))return;
   state.characters=list.characters;
   if(!state.characters.some(c=>c.id===state.selected)){
-   $('dashboard').hidden=true;$('sheet').replaceChildren();$('action-dialog').close();dialogAction=null;
+   $('dashboard').hidden=true;$('sheet').replaceChildren();dismissAction();
    state.selected=state.characters.find(c=>c.id===localStorage.getItem(selectionKey()))?.id??state.characters[0]?.id??null;state.snapshot=null;
   }
   $('characters').replaceChildren(...state.characters.map(c=>{const o=text('option',c.name);o.value=c.id;return o;}));$('characters').value=state.selected??'';
@@ -51,9 +75,12 @@ function quickCatalog(s){
 }
 function presetButton(action){const b=actionButton(action.label,action.operation,action.input);b.onclick=()=>openAction(action);return b;}
 const isRoll=operation=>operation.startsWith('roll.')||['spell.attack','spell.damage'].includes(operation);
-function openAction(action){
- if(busy||!state.snapshot)return;
- dialogAction={...action,scope:{...state.scope},actorId:state.selected};
+async function openAction(action){
+ if(busy||leasing||!state.snapshot)return;
+ const scope={...state.scope},actorId=state.selected,version=epoch;leasing=true;
+ try{await acquireActivity(scope);}catch{message('Unable to reserve this action. Reconnect and try again.');return;}finally{leasing=false;}
+ if(version!==epoch||JSON.stringify(scope)!==JSON.stringify(state.scope)||actorId!==state.selected){await releaseActivity();return;}
+ dialogAction={...action,scope,actorId};
  $('action-title').textContent=action.label;
  const roll=isRoll(action.operation),cast=['spell.cast','activity.use'].includes(action.operation),edit=action.edit;
  $('amount-label').hidden=roll||cast||edit==='text'||edit==='toggle'||edit==='none'||edit==='select';
@@ -133,15 +160,15 @@ function render(){
 }
 $('pair-form').onsubmit=async event=>{event.preventDefault();try{const result=await api('/v1/pair',{code:$('code').value.trim()});token=result.token;localStorage.setItem(storageKey,token);$('code').value='';message('Paired. Loading your character…');await refresh();}catch(error){message(error.message);}};
 $('forget').onclick=()=>{token=null;localStorage.removeItem(storageKey);clear();$('pairing').hidden=false;$('forget').hidden=true;$('connection').textContent='Not paired';message('Device credential removed from this browser.');};
-$('characters').onchange=()=>{epoch++;state.selected=$('characters').value;state.snapshot=null;localStorage.setItem(selectionKey(),state.selected);$('dashboard').hidden=true;$('sheet').replaceChildren();$('action-dialog').close();void refresh();};
+$('characters').onchange=()=>{epoch++;state.selected=$('characters').value;state.snapshot=null;localStorage.setItem(selectionKey(),state.selected);$('dashboard').hidden=true;$('sheet').replaceChildren();dismissAction();void refresh();};
 $('refresh').onclick=()=>{portraitAt=0;void refresh();};
 $('sheet-search').oninput=()=>{filterText=$('sheet-search').value;render();};$('spell-filter').onchange=()=>{spellFilter=$('spell-filter').value;render();};$('school-filter').onchange=()=>{schoolFilter=$('school-filter').value;render();};
 for(const button of document.querySelectorAll('[data-tab]'))button.onclick=()=>{tab=button.dataset.tab;document.querySelector('nav .active')?.classList.remove('active');button.classList.add('active');render();};
 for(const button of document.querySelectorAll('[data-hp]'))button.onclick=()=>openAction({operation:button.dataset.hp==='temp'?'hp.temp.set':'hp.adjust',input:{},sign:button.dataset.hp==='damage'?-1:1,label:button.dataset.hp==='temp'?'Replace temporary HP':button.dataset.hp==='damage'?'Apply damage':'Heal character'});
-$('cancel').onclick=()=>$('action-dialog').close();
+$('cancel').onclick=()=>dismissAction();
 $('action-form').onsubmit=async event=>{
  event.preventDefault();if(busy||!dialogAction)return;const action=dialogAction;
- if(JSON.stringify(action.scope)!==JSON.stringify(state.scope)||action.actorId!==state.selected){$('action-dialog').close();message('The selected character or world changed. Open the action again.');return;}
+ if(JSON.stringify(action.scope)!==JSON.stringify(state.scope)||action.actorId!==state.selected){dismissAction();message('The selected character or world changed. Open the action again.');return;}
  const amount=Number($('amount').value);let input;
  if(action.operation==='roll.hitDie')input={...action.input};
  else if(isRoll(action.operation))input={...action.input,mode:$('mode').value,...(action.operation==='roll.concentration'?{dc:Number($('dc').value)}:{})};
@@ -152,10 +179,11 @@ $('action-form').onsubmit=async event=>{
  else{if(!Number.isInteger(amount)||amount<0||amount>100000)return;input=action.edit?{...action.input,value:amount}:action.operation==='hp.temp.set'?{value:amount}:{amount:amount*action.sign};}
  if(action.weapon){input.attackMode=$('attack-mode').value;input.ammunitionId=$('ammunition').value;}
  const command={requestId:crypto.randomUUID(),scope:action.scope,actorId:action.actorId,operation:action.operation,input};
- busy=true;lastRequest=command.requestId;$('action-dialog').close();render();message('Waiting for Foundry…');
+ busy=true;lastRequest=command.requestId;$('action-dialog').close();dialogAction=null;await releaseActivity();render();message('Waiting for Foundry…');
  try{const result=await api('/v1/commands',command);message(result.status==='completed'?'Action confirmed by Foundry.':result.error?.message??'Outcome unknown. Check Foundry before acting again.');$('check-status').hidden=result.status!=='unknown';}
  catch{message('The action may have completed. Check its status before taking another action.');$('check-status').hidden=false;}
  finally{busy=false;await refresh();render();}
 };
 $('check-status').onclick=async()=>{try{const result=await api('/v1/requests/'+lastRequest);message(result.status==='completed'?'Action confirmed by Foundry.':result.error?.message??result.status);$('check-status').hidden=result.status!=='unknown';}catch(error){message(error.message);}};
+addEventListener('pagehide',()=>void releaseActivity());
 void refresh();setInterval(()=>void refresh(),3000);

@@ -5,6 +5,7 @@ import {readFile} from 'node:fs/promises';
 import { PROTOCOL_VERSION,failure,sameScope,validateConnectorUrl } from './protocol.js';
 import {AdminAuth,clientAddress} from './auth.js';
 import {connectorReleaseInfo} from './version.js';
+import {ActivityLeases} from './activity.js';
 
 async function body(request){
  if(!request.headers['content-type']?.startsWith('application/json'))throw failure('invalid-body','JSON is required.');
@@ -14,7 +15,7 @@ async function body(request){
  catch{throw failure('invalid-body','Invalid JSON request.');}
 }
 
-function apiHandler({store,bridge,adminSecret,publicUrl,coordinator,localPreview=false,trustedProxies=[],foundryUrl}){
+function apiHandler({store,bridge,adminSecret,publicUrl,coordinator,activity,localPreview=false,trustedProxies=[],foundryUrl}){
  const localUrl=new URL(publicUrl);
  const allowLocal=localPreview&&localUrl.origin==='http://127.0.0.1:8791'&&localUrl.href==='http://127.0.0.1:8791/';
  const auth=new AdminAuth(adminSecret,allowLocal?localUrl.origin:new URL(validateConnectorUrl(publicUrl)).origin);
@@ -35,7 +36,7 @@ function apiHandler({store,bridge,adminSecret,publicUrl,coordinator,localPreview
   if(route.startsWith('/v1/')){
    response.setHeader('Access-Control-Allow-Origin','*');
    response.setHeader('Access-Control-Allow-Headers','Authorization, Content-Type');
-   response.setHeader('Access-Control-Allow-Methods','GET, POST, OPTIONS');
+   response.setHeader('Access-Control-Allow-Methods','GET, POST, PUT, DELETE, OPTIONS');
    if(method==='OPTIONS'){response.writeHead(204);response.end();return;}
   }
   let result;
@@ -58,7 +59,15 @@ function apiHandler({store,bridge,adminSecret,publicUrl,coordinator,localPreview
   }else if(route.startsWith('/v1/')){
    const match=/^Bearer ([A-Za-z0-9_-]{43})$/.exec(request.headers.authorization??'');
    const device=store.authenticateDevice(match?.[1]);
-   if(route==='/v1/world'&&method==='GET'){
+   if(route==='/v1/activity-leases'&&method==='POST'&&activity){
+    result=activity.open(device.deviceId,await body(request),bridge.scope,Date.now());response.statusCode=201;
+   }else if(route==='/v1/activity-leases'&&method==='PUT'&&activity){
+    result=activity.renew(device.deviceId,await body(request),bridge.scope,Date.now());
+   }else if(route==='/v1/activity-leases'&&method==='DELETE'&&activity){
+    const value=await body(request);
+    if(Object.keys(value).length!==1||!Object.hasOwn(value,'leaseId'))throw failure('invalid-activity','Activity lease is invalid.');
+    activity.close(device.deviceId,value.leaseId,Date.now());response.statusCode=204;response.end();return;
+   }else if(route==='/v1/world'&&method==='GET'){
     const scope=bridge.scope;const userId=scope?store.resolveUser(device.deviceId,scope):null;
     result={scope,userId,status:scope?'connected':'offline'};
    }else if(/^\/v1\/characters\/[\w-]{1,128}\/portrait$/.test(route)&&method==='GET'){
@@ -82,7 +91,7 @@ function apiHandler({store,bridge,adminSecret,publicUrl,coordinator,localPreview
 // Without configuration, expose only the public diagnostic health endpoint.
 export function createServer(config) {
   const release=config?.release??connectorReleaseInfo();
-  const api=config?apiHandler(config):null;
+  const api=config?apiHandler({...config,activity:config.activity??new ActivityLeases()}):null;
   const server=createHttpServer(async(request,response) => {
     response.setHeader('Content-Type','application/json');
     response.setHeader('Cache-Control','no-store');
@@ -90,7 +99,7 @@ export function createServer(config) {
     if (request.url !== '/health') {
       if(api){
         try{await api(request,response);}catch(error){
-          const codes={'unauthorized':401,'forbidden':403,'rate-limited':429,'not-found':404,'request-not-found':404,'no-mapping':403,'stale-world':409,'request-conflict':409,'busy':429,'invalid-body':400,'invalid-mapping':400,'invalid-invite':400,'invalid-command':400};
+          const codes={'unauthorized':401,'forbidden':403,'rate-limited':429,'not-found':404,'request-not-found':404,'activity-not-found':404,'no-mapping':403,'stale-world':409,'request-conflict':409,'activity-conflict':409,'busy':429,'activity-limit':429,'invalid-body':400,'invalid-mapping':400,'invalid-invite':400,'invalid-command':400,'invalid-activity':400};
           const status=error.code==='invalid-label'?400:codes[error.code]??503;
           response.writeHead(status);response.end(JSON.stringify({error:{code:status===503?'unavailable':error.code,message:status===503?'Connector is unavailable. Try again shortly.':error.message}}));
         }
