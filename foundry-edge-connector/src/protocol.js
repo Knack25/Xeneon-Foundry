@@ -1,5 +1,7 @@
 // Shared by the connector, module and widget; keep this module browser-safe.
 export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_RANGE = Object.freeze({minimum:1, maximum:1});
+export const DATA_SCHEMA_VERSION = 1;
 export const OPERATIONS = Object.freeze(['hp.adjust', 'hp.temp.set', 'roll.ability', 'roll.save', 'roll.skill', 'roll.attack', 'roll.damage','roll.initiative','item.equip','item.quantity','uses.set','slots.set','resource.set','details.set','spell.cast','spell.attack','spell.damage','rest.short','rest.long','roll.hitDie','roll.death','roll.concentration','condition.set','concentration.end','inspiration.set','activity.use','spell.prepare','currency.set','item.attune','item.container']);
 export const DETAIL_FIELDS=Object.freeze(['name','alignment','appearance','trait','ideal','bond','flaw','age','gender','faith','height','weight','eyes','hair','skin']);
 export const ABILITIES = Object.freeze(['str', 'dex', 'con', 'int', 'wis', 'cha']);
