@@ -33,7 +33,10 @@ async function refresh(){
  finally{polling=false;}
 }
 function actionButton(label,operation,input){const b=text('button',label);b.disabled=busy||!state.snapshot?.capabilities.includes(operation);b.onclick=()=>openAction({operation,input,label});return b;}
-function openAction(action){if(busy||!state.snapshot)return;dialogAction={...action,scope:{...state.scope},actorId:state.selected};$('action-title').textContent=action.label;$('amount-label').hidden=action.operation.startsWith('roll.');$('mode-label').hidden=!action.operation.startsWith('roll.');$('amount').value='';$('amount').required=!action.operation.startsWith('roll.');$('action-note').textContent=action.operation==='hp.temp.set'?'Replaces the current temporary HP total.':'Changes are applied to the live Foundry character.';$('action-dialog').showModal();}
+function openAction(action){if(busy||!state.snapshot)return;dialogAction={...action,scope:{...state.scope},actorId:state.selected};$('action-title').textContent=action.label;$('amount-label').hidden=action.operation.startsWith('roll.');$('mode-label').hidden=!action.operation.startsWith('roll.');$('amount').value='';$('amount').required=!action.operation.startsWith('roll.');$('action-note').textContent=action.operation==='hp.temp.set'?'Replaces the current temporary HP total.':'Changes are applied to the live Foundry character.';$('mode').replaceChildren(...(action.operation==='roll.damage'?['normal','critical']:['normal','advantage','disadvantage']).map(value=>{const o=text('option',value[0].toUpperCase()+value.slice(1));o.value=value;return o;}));
+ const weapon=action.weapon;for(const [id,options] of [['attack-mode',weapon?.attackModes],['ammunition',weapon?.ammunition]]){const select=$(id);$(id+'-label').hidden=!weapon;select.replaceChildren(...(options?.length?options:[{value:'',label:'None'}]).map(value=>{const o=text('option',value.label);o.value=value.value;return o;}));}
+ if(weapon)$('action-note').textContent=action.operation==='roll.attack'?'Foundry rolls the attack. Ammunition or thrown weapons may be consumed by the selected mode.':'Rolls damage only; apply it to targets in Foundry. Choose the same weapon mode and ammunition as your attack.';
+ $('action-dialog').showModal();}
 function render(){
  const s=state.snapshot;if(!s)return;$('dashboard').hidden=false;$('name').textContent=s.name;$('hp').textContent=`${s.hp.value} / ${s.hp.max}`;$('ac').textContent=s.ac??'—';$('temp').textContent=`${s.hp.temp} temporary HP`;
  $('speed').textContent=Object.entries(s.speed).filter(([,v])=>typeof v==='number'&&v>0).map(([k,v])=>`${k} ${v}`).join(' · ');
@@ -41,6 +44,11 @@ function render(){
  const fragment=document.createDocumentFragment();
  if(tab==='abilities'){
   const grid=text('div','','grid');for(const [key,a]of Object.entries(s.abilities)){const card=text('div','','card');card.append(text('h3',names[key]??key),text('strong',`${a.value} (${signed(a.mod)})`,'score'),actionButton('Check','roll.ability',{ability:key}),actionButton(`Save ${signed(a.save)}`,'roll.save',{ability:key}));grid.append(card);}fragment.append(grid);
+ }else if(tab==='attacks'){
+  if(!s.attacks?.length)fragment.append(text('p','No weapon attack activities are available.','muted'));
+  for(const attack of s.attacks??[]){const card=text('div','','card');card.append(text('h3',attack.name),text('p',`${attack.activityName} ${attack.toHit}`));
+   for(const [label,operation] of [['Attack','roll.attack'],['Damage','roll.damage']]){const button=actionButton(label,operation,{itemId:attack.itemId,activityId:attack.activityId});button.onclick=()=>openAction({label:`${attack.name}: ${label}`,operation,input:{itemId:attack.itemId,activityId:attack.activityId},weapon:attack});button.disabled ||= operation==='roll.damage'&&!attack.hasDamage;card.append(button);}fragment.append(card);
+  }
  }else if(tab==='skills'){
   for(const [key,value]of Object.entries(s.skills)){const row=text('div','','row');row.append(text('span',`${names[key]??key} · passive ${value.passive??'—'}`),actionButton(signed(value.total),'roll.skill',{skill:key}));fragment.append(row);}
  }else if(tab==='resources'){
@@ -63,6 +71,7 @@ $('action-form').onsubmit=async event=>{
  if(JSON.stringify(action.scope)!==JSON.stringify(state.scope)||action.actorId!==state.selected){$('action-dialog').close();message('The selected character or world changed. Open the action again.');return;}
  const amount=Number($('amount').value);if(!action.operation.startsWith('roll.')&&(!Number.isInteger(amount)||amount<0||amount>100000))return;
  const input=action.operation.startsWith('roll.')?{...action.input,mode:$('mode').value}:action.operation==='hp.temp.set'?{value:amount}:{amount:amount*action.sign};
+ if(action.weapon){input.attackMode=$('attack-mode').value;input.ammunitionId=$('ammunition').value;}
  const command={requestId:crypto.randomUUID(),scope:action.scope,actorId:action.actorId,operation:action.operation,input};
  busy=true;lastRequest=command.requestId;$('action-dialog').close();render();message('Waiting for Foundry…');
  try{const result=await api('/v1/commands',command);message(result.status==='completed'?'Action confirmed by Foundry.':result.error?.message??'Outcome unknown. Check Foundry before acting again.');$('check-status').hidden=result.status!=='unknown';}

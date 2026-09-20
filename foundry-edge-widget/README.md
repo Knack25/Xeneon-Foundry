@@ -1,6 +1,8 @@
-# Foundry Edge widget (compatibility diagnostic)
+# Foundry Edge widget and web preview
 
-This is the first diagnostic, not the character dashboard. It records the actual Large/XL viewport and checks HTTPS access to the connector without sending credentials or modifying characters.
+`widget/preview.html` is the live character dashboard served by the connector. Refresh the hosted preview and select **Attacks** to see weapon attack activities. Each entry offers **Attack** (normal, advantage or disadvantage) and **Damage** (normal or critical). Choose weapon mode and ammunition in the confirmation dialog. Native Foundry attack rules may consume ammunition or thrown weapons; damage rolls do not apply target HP changes. Spell attacks and initiative are not included in this increment.
+
+The first hardware package still uses a diagnostic entry point. It records the actual Large/XL viewport and checks HTTPS access to the connector without sending credentials or modifying characters.
 
 With Node 24 or newer:
 

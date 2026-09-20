@@ -1,6 +1,6 @@
 // Shared by the connector, module and widget; keep this module browser-safe.
 export const PROTOCOL_VERSION = 1;
-export const OPERATIONS = Object.freeze(['hp.adjust', 'hp.temp.set', 'roll.ability', 'roll.save', 'roll.skill']);
+export const OPERATIONS = Object.freeze(['hp.adjust', 'hp.temp.set', 'roll.ability', 'roll.save', 'roll.skill', 'roll.attack', 'roll.damage']);
 export const ABILITIES = Object.freeze(['str', 'dex', 'con', 'int', 'wis', 'cha']);
 export const SKILLS = Object.freeze(['acr', 'ani', 'arc', 'ath', 'dec', 'his', 'ins', 'itm', 'inv', 'med', 'nat', 'prc', 'prf', 'per', 'rel', 'slt', 'ste', 'sur']);
 
@@ -30,6 +30,12 @@ export function validateCommand(raw) {
     if (!fields(input, ['amount']) || !Number.isSafeInteger(input.amount) || Math.abs(input.amount) > 100000) invalid();
   } else if (raw.operation === 'hp.temp.set') {
     if (!fields(input, ['value']) || !Number.isSafeInteger(input.value) || input.value < 0 || input.value > 100000) invalid();
+  } else if (['roll.attack','roll.damage'].includes(raw.operation)) {
+    if (!fields(input,['itemId','activityId','attackMode','ammunitionId','mode'])
+      || !identifier(input.itemId) || !identifier(input.activityId)
+      || !(input.attackMode === '' || identifier(input.attackMode))
+      || !(input.ammunitionId === '' || identifier(input.ammunitionId))
+      || !(raw.operation === 'roll.attack' ? ['normal','advantage','disadvantage'] : ['normal','critical']).includes(input.mode)) invalid();
   } else {
     const skill = raw.operation === 'roll.skill';
     const key = skill ? 'skill' : 'ability';

@@ -53,3 +53,9 @@ Confirm the character is the speaker, the requesting player label appears, the a
 For disposable-character HP testing use `operation: 'hp.adjust', input: {amount: -1}` for damage, positive amounts for healing, or `operation: 'hp.temp.set', input: {value: 2}` to explicitly replace temp HP. Check that damage consumes temp HP and healing respects the maximum. These use native D&D methods; automated tests verify call boundaries, not the real game engine.
 
 Remove the test player's ownership and confirm reads and actions fail even though the service user remains an owner. Test with normal player browsers open and closed. Record the Foundry build, service role, and observed results in `docs/foundry/compatibility-14-5.3.3.md`.
+
+## Weapon attacks
+
+The snapshot includes weapon attack activities, their native to-hit labels, weapon modes and ammunition choices. `roll.attack` and `roll.damage` require explicit `itemId`, `activityId`, `attackMode`, `ammunitionId` and `mode`; the module resolves these only within the authorized character and checks the current options before dispatch. No client-supplied formula or arbitrary roll configuration is accepted.
+
+Attacks use D&D 5.3.3 Activity `rollAttack`; damage uses `rollDamage` with explicit critical state and no dialog. Native ammunition/thrown-weapon consumption applies to attacks. Damage rolls are independent; select the same mode and ammunition used for the attack. When Foundry deletes a final ammunition stack, its damage data is retained for that player for ten minutes within the same connector session, shown as "spent; damage only". It cannot be used for another attack. After expiry or a connector restart, resolve that damage in Foundry.

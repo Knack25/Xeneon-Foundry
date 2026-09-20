@@ -7,6 +7,14 @@ const command = (operation = 'hp.adjust', input = { amount: -5 }) => ({
   requestId: 'request-1', scope: { ...scope }, actorId: 'actor-1', operation, input
 });
 
+test('weapon commands accept explicit selections and reject formulas or injected options',()=>{
+ const input={itemId:'weapon',activityId:'strike',attackMode:'oneHanded',ammunitionId:'',mode:'normal'};
+ for(const op of ['roll.attack','roll.damage'])assert.deepEqual(validateCommand(command(op,input)).input,input);
+ assert.equal(validateCommand(command('roll.damage',{...input,mode:'critical'})).input.mode,'critical');
+ for(const patch of [{formula:'100d20'},{userId:'gm'},{itemId:'Actor.other.Item.weapon'},{activityId:''},{mode:'critical'},{ammunitionId:null}])assert.throws(()=>validateCommand(command('roll.attack',{...input,...patch})),{code:'invalid-command'});
+ assert.throws(()=>validateCommand(command('roll.damage',{...input,mode:'advantage'})),{code:'invalid-command'});
+});
+
 test('scope rejects cross-world, cross-server, stale generation and incomplete identities', () => {
   assert.equal(sameScope(scope, { ...scope }), true);
   for (const key of Object.keys(scope)) assert.equal(sameScope(scope, { ...scope, [key]: 'different' }), false);

@@ -7,6 +7,39 @@ const makeCommand = (operation = 'roll.skill', input = {skill:'prc',mode:'normal
   requestId:'request-1',scope:{...scope},actorId:'pc',operation,input
 });
 
+test('weapon activities use native attack and critical damage with explicit options and attribution',async()=>{
+ const {adapter,pc,effects}=fixture();const item=pc.items[0];
+ item.system.attackModes=[{value:'oneHanded',label:'One handed'}];
+ item.system.activities=new Map([['attack1',{id:'attack1',type:'attack',name:'Strike',damage:{parts:[{}]},labels:{toHit:'+3'},
+ async rollAttack(config,dialog,message){effects.push({config,dialog,message});return [{total:18}];},
+ async rollDamage(config,dialog,message){effects.push({config,dialog,message});return [{total:9}];}}]]);
+ const input={itemId:item.id,activityId:'attack1',attackMode:'oneHanded',ammunitionId:'',mode:'advantage'};
+ assert.equal(adapter.readCharacter('player','pc',scope).attacks[0].activityId,'attack1');
+ await adapter.executeAction('player',makeCommand('roll.attack',input));
+ assert.equal(effects[0].config.advantage,true);assert.equal(effects[0].config.attackMode,'oneHanded');assert.equal(effects[0].config.ammunition,'');
+ assert.equal(effects[0].message.data.flags['foundry-edge'].requestingUserId,'player');
+ await adapter.executeAction('player',makeCommand('roll.damage',{...input,mode:'critical'}));
+ assert.equal(effects[1].config.isCritical,true);assert.equal(effects[1].dialog.configure,false);
+ for(const patch of [{itemId:'missing'},{activityId:'missing'},{attackMode:'forged'},{ammunitionId:'foreign'}])await assert.rejects(()=>adapter.executeAction('player',makeCommand('roll.attack',{...input,...patch})),{code:'unsupported-action'});
+ assert.equal(effects.length,2);
+ item.system.properties=new Set(['amm']);
+ await assert.rejects(()=>adapter.executeAction('player',makeCommand('roll.attack',input)),{code:'unsupported-action'});
+ const ammo={id:'ammo',type:'consumable',system:{quantity:2}};pc.items.push(ammo);item.system.ammunitionOptions=[{value:'ammo',label:'Arrows'}];
+ await adapter.executeAction('player',makeCommand('roll.attack',{...input,ammunitionId:'ammo'}));assert.equal(effects[2].config.ammunition,'ammo');
+ await adapter.executeAction('player',makeCommand('roll.damage',{...input,mode:'normal',ammunitionId:'ammo'}));assert.equal(effects[3].config.ammunition,ammo);
+ ammo.system.quantity=0;await assert.rejects(()=>adapter.executeAction('player',makeCommand('roll.attack',{...input,ammunitionId:'ammo'})),{code:'unsupported-action'});
+ item.system.attackModes.push({rule:true});assert.equal(adapter.readCharacter('player','pc',scope).attacks[0].attackModes.length,1);
+ const activity=item.system.activities.get('attack1');activity.damage.parts=[];
+ assert.equal(adapter.readCharacter('player','pc',scope).attacks[0].hasDamage,true);
+ ammo.system.quantity=1;ammo.clone=()=>({...ammo,system:{...ammo.system}});
+ activity.rollAttack=async()=>{pc.items=pc.items.filter(i=>i!==ammo);item.system.ammunitionOptions=[];return [{total:12}];};
+ await adapter.executeAction('player',makeCommand('roll.attack',{...input,ammunitionId:'ammo'}));
+ assert.equal(adapter.readCharacter('player','pc',scope).attacks[0].ammunition[0].value,'ammo');
+ await adapter.executeAction('player',makeCommand('roll.damage',{...input,mode:'normal',ammunitionId:'ammo'}));
+ assert.equal(effects.at(-1).config.ammunition.id,'ammo');
+ await assert.rejects(()=>adapter.executeAction('player',makeCommand('roll.attack',{...input,ammunitionId:'ammo'})),{code:'unsupported-action'});
+});
+
 function fixture({roleMode = 'public', generation = 14, version = '5.3.3'} = {}) {
   const effects = [];
   const player = {id:'player',name:'Nathan <img src=x onerror=alert(1)>'};

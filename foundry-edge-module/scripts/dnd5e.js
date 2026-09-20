@@ -7,6 +7,15 @@ const mapValues = (value, project) => Object.fromEntries(Object.entries(value ??
 
 export function createAdapter({game, getScope, getRollMode}) {
   let revision = 0;
+  // Keep deleted final-shot ammunition briefly for a separate damage roll, scoped to its requesting player.
+  const spentAmmo=new Map();
+  const ammoKey=(userId,actorId,itemId,ammoId)=>JSON.stringify([getScope(),userId,actorId,itemId,ammoId]);
+  function pruneAmmo(){for(const [key,entry]of spentAmmo)if(entry.expires<Date.now()||!sameScope(entry.scope,getScope()))spentAmmo.delete(key);}
+  function ammunitionOptions(userId,actor,item){
+    pruneAmmo();const options=(item.system.ammunitionOptions??[]).filter(o=>o.value).map(o=>({value:text(o.value),label:text(o.label)}));
+    for(const entry of spentAmmo.values())if(entry.userId===userId&&entry.actorId===actor.id&&entry.itemId===item.id&&!actor.items.some(i=>i.id===entry.ammo.id)&&!options.some(o=>o.value===entry.ammo.id))options.push({value:entry.ammo.id,label:`${entry.ammo.name??'Ammunition'} (spent; damage only)`});
+    return options;
+  }
   function requireVersion() {
     if (Number(game.release?.generation) !== 14 || game.system?.id !== 'dnd5e' || game.system.version !== '5.3.3')
       throw failure('unsupported-version', 'This adapter targets Foundry 14 and D&D 5e 5.3.3 only.');
@@ -30,7 +39,14 @@ export function createAdapter({game, getScope, getRollMode}) {
       level:number(item.system?.level),prepared:[1,2].includes(item.system?.prepared),
       preparationState:number(item.system?.prepared),
       equipped:item.system?.equipped === true,uses:{value:number(item.system?.uses?.value),max:number(item.system?.uses?.max)}}));
-    return {scope:{...scope},revision:++revision,actorId:actor.id,name:actor.name,portraitRef:null,
+    const attacks=[...actor.items].filter(item=>item.type==='weapon').flatMap(item=>[...(item.system.activities?.values()??[])].filter(a=>a.type==='attack').map(a=>({
+      itemId:item.id,activityId:a.id,name:item.name,activityName:text(a.name),toHit:text(a.labels?.toHit),
+      hasDamage:!!a.damage?.parts?.length||item.system.properties?.has('amm')===true,quantity:number(item.system.quantity),
+      attackModes:(item.system.attackModes??[]).filter(o=>typeof o.value==='string').map(o=>({value:text(o.value),label:text(o.label)})),
+      ammunition:ammunitionOptions(userId,actor,item),
+      requiresAmmunition:item.system.properties?.has('amm')===true
+    })));
+    return {scope:{...scope},revision:++revision,actorId:actor.id,name:actor.name,portraitRef:null,attacks,
       hp:{value:number(data.attributes?.hp?.value),max:number(data.attributes?.hp?.max),temp:number(data.attributes?.hp?.temp) ?? 0},
       ac:number(data.attributes?.ac?.value),
       speed:mapValues(data.attributes?.movement, value => typeof value === 'number' ? number(value) : text(value)),
@@ -55,9 +71,10 @@ export function createAdapter({game, getScope, getRollMode}) {
         throw failure('unsupported-roll-mode', 'Private rolls are not supported by this connector yet.');
       const skill = operation === 'roll.skill';
       const key = skill ? 'skill' : 'ability';
-      if (!Object.hasOwn(skill ? actor.system.skills ?? {} : actor.system.abilities ?? {}, input[key]))
+      const weaponRoll=['roll.attack','roll.damage'].includes(operation);
+      if (!weaponRoll && !Object.hasOwn(skill ? actor.system.skills ?? {} : actor.system.abilities ?? {}, input[key]))
         throw failure('unsupported-action', 'This character does not have the selected skill or ability.');
-      const config = {[key]:input[key]};
+      const config = weaponRoll ? {} : {[key]:input[key]};
       // Normal preserves system effects; selected advantage/disadvantage participates in native cancellation rules.
       if (input.mode === 'advantage') config.advantage = true;
       if (input.mode === 'disadvantage') config.disadvantage = true;
@@ -67,7 +84,31 @@ export function createAdapter({game, getScope, getRollMode}) {
           requestId:command.requestId,scope:{...command.scope}}}
       }};
       const method = skill ? 'rollSkill' : operation === 'roll.save' ? 'rollSavingThrow' : 'rollAbilityCheck';
-      rolls = await actor[method](config,{configure:false},message);
+      if(weaponRoll){
+        const item=[...actor.items].find(i=>i.id===input.itemId&&i.type==='weapon');
+        const activity=item?.system.activities?.get(input.activityId);
+        const modes=(item?.system.attackModes??[]).filter(o=>typeof o.value==='string');
+        pruneAmmo();
+        const liveAmmo=input.ammunitionId ? [...actor.items].find(i=>i.id===input.ammunitionId) : null;
+        const retained=operation==='roll.damage'&&!liveAmmo ? spentAmmo.get(ammoKey(userId,actor.id,input.itemId,input.ammunitionId)) : null;
+        const ammo=liveAmmo??retained?.ammo;
+        if(!activity||activity.type!=='attack'||(operation==='roll.attack'&&item.system.quantity===0)
+          || (modes.length ? !modes.some(o=>o.value===input.attackMode) : input.attackMode!=='')
+          || (input.ammunitionId && (!ammo||(!retained&&!(item.system.ammunitionOptions??[]).some(o=>o.value===input.ammunitionId))))
+          || (item.system.properties?.has('amm') && !ammo)
+          || (operation==='roll.attack'&&ammo?.system.quantity===0)
+          || (operation==='roll.damage'&&!activity.damage?.parts?.length&&!ammo))
+          throw failure('unsupported-action','This weapon, attack mode or ammunition is no longer available. Refresh the sheet.');
+        config.attackMode=input.attackMode;
+        config.ammunition=operation==='roll.attack'?input.ammunitionId:ammo;
+        if(operation==='roll.damage')config.isCritical=input.mode==='critical';
+        const ammoCopy=operation==='roll.attack'?ammo?.clone?.({}, {keepId:true}):null;
+        rolls=await activity[operation==='roll.attack'?'rollAttack':'rollDamage'](config,{configure:false},message);
+        if(rolls?.length&&ammoCopy&&!actor.items.some(i=>i.id===ammoCopy.id)){
+          if(spentAmmo.size>=100)spentAmmo.delete(spentAmmo.keys().next().value);
+          spentAmmo.set(ammoKey(userId,actor.id,item.id,ammoCopy.id),{ammo:ammoCopy,userId,actorId:actor.id,itemId:item.id,scope:{...command.scope},expires:Date.now()+600000});
+        }
+      }else rolls = await actor[method](config,{configure:false},message);
       if (!rolls?.length) throw failure('action-cancelled', 'Foundry cancelled the roll.');
     } else if (operation === 'hp.adjust') {
       await actor.applyDamage(-input.amount);
