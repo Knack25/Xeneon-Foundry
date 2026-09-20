@@ -3,5 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "scripts": { "test": "node --test tests/*.test.mjs", "build": "node scripts/build.mjs" }
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "build": "node scripts/build.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Knack25/Xeneon-Foundry.git",
+    "directory": "foundry-edge-module"
+  }
 }

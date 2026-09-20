@@ -1,0 +1,24 @@
+name: Verify Foundry components
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: foundry-edge-connector/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci --prefix foundry-edge-connector
+      - run: node --test foundry-edge-module/tests/*.test.mjs foundry-edge-connector/tests/*.test.mjs foundry-edge-widget/tests/*.test.mjs
+      - run: node foundry-edge-module/scripts/build.mjs
+      - run: node foundry-edge-widget/scripts/build.mjs https://connector.example.test/edge
+      - run: python scripts/package-foundry-probe.py foundry-edge-module/dist dist/foundry-edge-module.zip
