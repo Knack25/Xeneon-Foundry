@@ -9,6 +9,7 @@ This is the home of the Foundry project formerly developed in [Xeneon-Widgets](h
 - [Companion module](foundry-edge-module/README.md): current-world owned-PC access and native D&D actions through a dedicated service account.
 - [Connector](foundry-edge-connector/README.md): unattended Foundry session, pairing, administration, durable commands and hosted dashboard delivery.
 - [Dashboard and Edge package](foundry-edge-widget/README.md): character switching, attacks/spells, session controls, inventory, favorites and display preferences.
+- [Host updater foundation](foundry-edge-updater/README.md): signed-manifest validation, trusted-source retrieval and deterministic compatibility policy; installation is not enabled.
 
 Verified target: Foundry **14.367** and D&D 5e **5.3.3**. This remains a test-world beta. The hosted web dashboard is functional; the physical iCUE package still uses a diagnostic entry point until hardware validation. See [compatibility evidence](docs/foundry/compatibility-14-5.3.3.md).
 
@@ -18,7 +19,7 @@ Install Node.js 24+ and Python 3.9+. From this repository root:
 
 ```sh
 npm ci --prefix foundry-edge-connector
-node --test foundry-edge-module/tests/*.test.mjs foundry-edge-connector/tests/*.test.mjs foundry-edge-widget/tests/*.test.mjs
+node --test foundry-edge-module/tests/*.test.mjs foundry-edge-connector/tests/*.test.mjs foundry-edge-widget/tests/*.test.mjs foundry-edge-updater/tests/*.test.mjs
 node foundry-edge-module/scripts/build.mjs
 node foundry-edge-widget/scripts/build.mjs https://your-connector.example/edge
 python scripts/package-foundry-probe.py foundry-edge-module/dist dist/foundry-edge-module.zip
@@ -40,4 +41,4 @@ The running VPS does not depend on the checkout name. Repository migration does 
 
 ## Automatic updates
 
-The [coordinated update design](docs/superpowers/specs/2026-09-20-foundry-automatic-updates-design.md) specifies signed compatible releases and installation only while users are disconnected and Edge actions are idle. **Automatic updates are not implemented yet.** Future Foundry release assets belong in this repository, independently of Microsoft widget releases.
+The [coordinated update design](docs/superpowers/specs/2026-09-20-foundry-automatic-updates-design.md) specifies signed compatible releases and installation only while users are disconnected and Edge actions are idle. The first foundation phase validates signed, origin-constrained manifests, evaluates compatibility and reports component identity. **Automatic updates are not implemented yet:** there is no configured stable source/key, polling, quiet gate, staging, installer, recovery service or update UI, and connector reporting keeps `automaticInstall.enabled` false. Future Foundry release assets belong in this repository, independently of Microsoft widget releases. No production Foundry `manifest` or `download` URL is added until an actual signed test-channel release exists.

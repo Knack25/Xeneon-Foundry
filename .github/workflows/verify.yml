@@ -18,7 +18,8 @@ jobs:
         with:
           python-version: '3.12'
       - run: npm ci --prefix foundry-edge-connector
-      - run: node --test foundry-edge-module/tests/*.test.mjs foundry-edge-connector/tests/*.test.mjs foundry-edge-widget/tests/*.test.mjs
+      - run: node --test foundry-edge-module/tests/*.test.mjs foundry-edge-connector/tests/*.test.mjs foundry-edge-widget/tests/*.test.mjs foundry-edge-updater/tests/*.test.mjs
       - run: node foundry-edge-module/scripts/build.mjs
       - run: node foundry-edge-widget/scripts/build.mjs https://connector.example.test/edge
+      - run: docker build -f foundry-edge-connector/Dockerfile -t foundry-edge:verify .
       - run: python scripts/package-foundry-probe.py foundry-edge-module/dist dist/foundry-edge-module.zip

@@ -29,7 +29,7 @@ Create a separate random administrator key of at least 32 characters in `secrets
 
 Set `PUBLIC_URL` and the Traefik hostname in `compose.yaml`. Set `TRUSTED_PROXY_IPS` in an adjacent `.env` file to the exact proxy source address seen by this container. This deployment uses Docker gateway `172.16.5.1` because Traefik runs in host networking. Recheck it after recreating the network. Forwarded headers are ignored unless the socket peer is explicitly trusted; the nearest forwarded client address is validated. Login/pairing limits allow five failed attempts per minute per address; successful requests do not consume that limit.
 
-Start with `docker compose -p foundry-edge up -d --no-build`. The host port binds only to loopback; Traefik exposes HTTPS. `/health` reports liveness; `/ready` returns503 while Foundry is disconnected. The browser has no exposed debugging port and uses a small viewport, no-canvas/low-motion client settings and bounded reconnect backoff. Chromium's [WebGL-only software fallback](https://chromium.googlesource.com/chromium/src/+/HEAD/docs/gpu/swiftshader.md) avoids the excessive CPU observed when emulating all GPU compositing.
+Start with `docker compose -p foundry-edge up -d --no-build`. The host port binds only to loopback; Traefik exposes HTTPS. `/health` reports liveness plus the public release identity; `/ready` reports the same identity and returns 503 while Foundry is disconnected. The release object contains connector/dashboard versions, supported protocol range, data-schema version and `automaticInstall:{enabled:false,reason:"release-source-not-configured"}`. It contains no credentials. The browser has no exposed debugging port and uses a small viewport, no-canvas/low-motion client settings and bounded reconnect backoff. Chromium's [WebGL-only software fallback](https://chromium.googlesource.com/chromium/src/+/HEAD/docs/gpu/swiftshader.md) avoids the excessive CPU observed when emulating all GPU compositing.
 
 ## Operations
 
@@ -45,3 +45,5 @@ Device administration supports friendly names and last-seen timestamps. The addi
 Authenticated character portraits are available through `/v1/characters/:id/portrait`, with current mapping and scope checks. The module restricts delivery to bounded same-origin raster images.
 
 Target: Foundry **14.367**, D&D5e **5.3.3**. This is a deployed test-world beta. Second-world transition checks and physical iCUE release remain pending. See [compatibility evidence](../docs/foundry/compatibility-14-5.3.3.md).
+
+The connector reports release identity but does not check for or install updates. It has no Docker socket or updater control channel. No production Foundry module `manifest`/`download` URLs exist until a signed test-channel release is published and exercised.
