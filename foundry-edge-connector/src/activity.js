@@ -13,6 +13,7 @@ const freeze=value=>{
 
 export class ActivityLeases{
  #leases=new Map();
+ #revision=0;
  constructor({maximumLeaseMs=45000,minimumLeaseMs=5000,maximumPerOwner=4,now=Date.now}={}){
   if(!Number.isSafeInteger(maximumLeaseMs)||!Number.isSafeInteger(minimumLeaseMs)
     ||minimumLeaseMs<1||maximumLeaseMs<minimumLeaseMs||!Number.isSafeInteger(maximumPerOwner)||maximumPerOwner<1
@@ -21,8 +22,10 @@ export class ActivityLeases{
  }
  #purge(now){
   if(!Number.isSafeInteger(now)||now<0)throw failure('invalid-activity','Activity lease is invalid.');
-  for(const [key,value]of this.#leases)if(value.expiresAt<=now)this.#leases.delete(key);
+  let changed=false;for(const [key,value]of this.#leases)if(value.expiresAt<=now){this.#leases.delete(key);changed=true;}
+  if(changed)this.#revision++;
  }
+ continuity(){return this.#revision;}
  #validate(owner,raw,currentScope,now){
   this.#purge(now);
   if(!identifier(owner)||!exact(raw,['leaseId','kind','scope','ttlMs'])||!identifier(raw.leaseId)
@@ -37,6 +40,7 @@ export class ActivityLeases{
   if([...this.#leases.values()].filter(value=>value.owner===owner).length>=this.maximumPerOwner)
     throw failure('activity-limit','Too many open confirmations.');
   this.#leases.set(key,{owner,leaseId:raw.leaseId,kind:raw.kind,scope:{...raw.scope},expiresAt:now+raw.ttlMs});
+  this.#revision++;
   return this.#public(this.#leases.get(key));
  }
  renew(owner,raw,currentScope,now=this.now()){
@@ -49,7 +53,7 @@ export class ActivityLeases{
  close(owner,leaseId,now=this.now()){
   this.#purge(now);
   if(!identifier(owner)||!identifier(leaseId))throw failure('invalid-activity','Activity lease is invalid.');
-  return this.#leases.delete(owner+'\0'+leaseId);
+  const deleted=this.#leases.delete(owner+'\0'+leaseId);if(deleted)this.#revision++;return deleted;
  }
  active(now=this.now()){
   this.#purge(now);

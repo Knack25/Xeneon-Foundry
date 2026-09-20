@@ -11,15 +11,19 @@ const freeze=value=>{
   return value;
 };
 const unknown=reason=>freeze({state:'unknown',reason});
+const safetyState=value=>value&&JSON.stringify([value.scope.instanceId,value.scope.worldId,value.scope.generation,
+  value.serviceUserId,value.users.some(user=>user.id!==value.serviceUserId)]);
 
 export class PresenceMonitor{
+  #revision=0;
   constructor({maxAgeMs=15000,now=Date.now}={}){
     if(!Number.isSafeInteger(maxAgeMs)||maxAgeMs<1||typeof now!=='function')throw new TypeError('Invalid presence monitor options.');
     this.maxAgeMs=maxAgeMs;this.now=now;this.value=null;this.reason='not-observed';
   }
-  clear(){this.value=null;this.reason='disconnected';}
+  clear(){this.value=null;this.reason='disconnected';this.#revision++;}
+  continuity(){return this.#revision;}
   record(report,currentScope,receivedAt=this.now()){
-    const invalid=()=>{this.value=null;this.reason='invalid';throw failure('invalid-presence','Foundry presence is invalid.');};
+    const invalid=()=>{this.value=null;this.reason='invalid';this.#revision++;throw failure('invalid-presence','Foundry presence is invalid.');};
     const currentTime=this.now();
     if(!Number.isSafeInteger(receivedAt)||receivedAt<0||receivedAt>currentTime
       ||(this.value&&receivedAt<this.value.receivedAt)
@@ -32,8 +36,11 @@ export class PresenceMonitor{
       ids.add(user.id);
     }
     if(!ids.has(report.serviceUserId))invalid();
-    this.value=freeze({state:'known',scope:{...report.scope},serviceUserId:report.serviceUserId,
+    const previous=this.value;
+    const next=freeze({state:'known',scope:{...report.scope},serviceUserId:report.serviceUserId,
       users:report.users.map(user=>({id:user.id,role:user.role})),receivedAt});
+    if(!previous||receivedAt-previous.receivedAt>this.maxAgeMs||safetyState(previous)!==safetyState(next))this.#revision++;
+    this.value=next;
     this.reason=null;
     return this.value;
   }

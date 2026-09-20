@@ -17,6 +17,7 @@ export class Store {
     const columns=this.db.prepare('PRAGMA table_info(devices)').all();
     if(!columns.some(column=>column.name==='label'))this.db.exec('ALTER TABLE devices ADD COLUMN label TEXT');
     if(!columns.some(column=>column.name==='last_seen'))this.db.exec('ALTER TABLE devices ADD COLUMN last_seen INTEGER');
+    this.requestRevision=0;
   }
   close(){this.db.close();}
   requireDevice(deviceId){
@@ -65,6 +66,8 @@ export class Store {
   }
   mappingRevision(deviceId,scope){this.resolveUser(deviceId,scope);return this.db.prepare('SELECT revision FROM mappings WHERE device=? AND instance=? AND world=?').get(deviceId,scope.instanceId,scope.worldId).revision;}
   countUnresolvedRequests(){return this.db.prepare("SELECT count(*) AS count FROM requests WHERE status IN ('accepted','dispatched','unknown')").get().count;}
+  requestContinuity(){return this.requestRevision;}
+  markRequestContinuity(){this.requestRevision++;}
   revokeDevice(deviceId){this.db.prepare('UPDATE devices SET revoked=1 WHERE id=?').run(deviceId);}
   renameDevice(deviceId,label){
     if(typeof label!=='string'||label.length<1||label.length>80||label!==label.trim()||/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u.test(label))

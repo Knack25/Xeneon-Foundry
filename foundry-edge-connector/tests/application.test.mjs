@@ -29,7 +29,8 @@ test('startup safety is unknown until fresh presence and maintenance returns ret
  const device=store.redeemInvite(store.createInvite({scope,userId:'player'}));
  const report={scope,serviceUserId:'service',users:[{id:'service',role:2}]};
  assert.deepEqual(safety.gate.status(1000).blockers,['presence-unknown']);
- safety.presence.record(report,scope,1000);safety.gate.status(1000);safety.presence.record(report,scope,301000);
+ safety.presence.record(report,scope,1000);safety.gate.status(1000);
+ for(let at=4000;at<=301000;at+=3000)safety.presence.record(report,scope,at);
  const token=safety.gate.acquireMaintenance(301000);
  const server=createApplication({store,bridge,coordinator,activity:safety.activity,adminSecret:'x'.repeat(40),publicUrl:'https://edge.example'});
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));

@@ -14,9 +14,12 @@ function safety(store){
   let currentTime=1000;
   const presence=new PresenceMonitor({now:()=>currentTime}),activity=new ActivityLeases({now:()=>currentTime});
   presence.record({scope,serviceUserId:'service',users:[{id:'service',role:2}]},scope,1000);
-  const gate=new UpdateSafetyGate({presence,activity,unresolvedRequests:()=>store.countUnresolvedRequests(),makeToken:()=> 'maintenance-token'});
+  const gate=new UpdateSafetyGate({presence,activity,unresolvedRequests:()=>store.countUnresolvedRequests(),requestContinuity:()=>store.requestContinuity(),makeToken:()=> 'maintenance-token'});
   gate.status(1000);
-  return {presence,activity,gate,refreshPresence(time){currentTime=time;presence.record({scope,serviceUserId:'service',users:[{id:'service',role:2}]},scope,time);}};
+  return {presence,activity,gate,refreshPresence(time){
+    for(let at=currentTime+3000;at<time;at+=3000){currentTime=at;presence.record({scope,serviceUserId:'service',users:[{id:'service',role:2}]},scope,at);}
+    currentTime=time;presence.record({scope,serviceUserId:'service',users:[{id:'service',role:2}]},scope,time);
+  }};
 }
 function fixture(executeAction){
   const store=new Store(':memory:');
@@ -107,8 +110,8 @@ test('maintenance rejects new commands before insertion but preserves completed 
  const f=fixture(async()=>({status:'completed'}));
  try{
   assert.equal((await f.coordinator.dispatch(f.device.deviceId,command)).status,'completed');
-  f.refreshPresence(301000);
-  const token=f.gate.acquireMaintenance(301000);
+  f.refreshPresence(301000);f.gate.status(301000);f.refreshPresence(601000);
+  const token=f.gate.acquireMaintenance(601000);
   await assert.rejects(()=>f.coordinator.dispatch(f.device.deviceId,{...command,requestId:'new'}),{code:'maintenance'});
   assert.equal(f.store.db.prepare("SELECT count(*) AS n FROM requests WHERE id='new'").get().n,0);
   assert.equal((await f.coordinator.dispatch(f.device.deviceId,command)).status,'completed');

@@ -29,6 +29,7 @@ export class Coordinator {
     const acceptedUser=this.check(deviceId,command.scope),acceptedRevision=this.store.mappingRevision(deviceId,command.scope);
     if(this.pending>=this.maxQueued)throw failure('busy','Too many pending actions. Wait before trying again.');
     this.store.db.prepare("INSERT INTO requests(device,id,digest,status) VALUES(?,?,?,'accepted')").run(deviceId,command.requestId,hash);
+    this.store.markRequestContinuity();
     const key=canonical({...command.scope,actorId:command.actorId});
     const previous=this.queues.get(key)??Promise.resolve();
     this.pending++;
@@ -50,6 +51,7 @@ export class Coordinator {
         result={requestId:command.requestId,status:'rejected',error:{code:'access-changed',message:'World or device access changed before this action could run.'}};
       }
       this.store.db.prepare('UPDATE requests SET status=?,result=? WHERE device=? AND id=?').run(result.status,JSON.stringify(result),deviceId,command.requestId);
+      if(['completed','rejected'].includes(result.status))this.store.markRequestContinuity();
       return result;
     });
     this.queues.set(key,work);

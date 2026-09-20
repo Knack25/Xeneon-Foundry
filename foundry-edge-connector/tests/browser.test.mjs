@@ -59,3 +59,40 @@ test('a failed presence heartbeat clears trusted state and enters reconnect flow
  assert.equal(bridge.scope,null);assert.equal(clears,1);assert.equal(scheduled.ms,5000);
  await controller.stop();
 });
+
+for(const phase of ['initial','heartbeat'])test(`disconnect cannot restore presence from an in-flight ${phase} read`,async()=>{
+ const scope={instanceId:'i',worldId:'w',generation:'g'};let disconnect,scheduled,release,reads=0,reports=0,clears=0;
+ const report={scope,serviceUserId:'service',users:[{id:'service',role:2}]};
+ const session={scope,call:async method=>{
+  if(method==='ping')return true;
+  reads++;
+  if(phase==='heartbeat'&&reads===1)return report;
+  return new Promise(resolve=>release=()=>resolve(report));
+ },close:async()=>{}};
+ const bridge=new BrowserBridge();
+ const controller=startBrowser({bridge,config:{},presence:{record:()=>reports++,clear:()=>clears++},connect:async(config,onDisconnect)=>{disconnect=onDisconnect;return session;},
+  setTimer:(fn,ms)=>{scheduled={fn,ms};return 1;},clearTimer:()=>{}});
+ await flush();
+ if(phase==='heartbeat'){assert.equal(reports,1);scheduled.fn();await flush();}
+ disconnect();release();await flush();
+ assert.equal(bridge.scope,null);assert.equal(reports,phase==='heartbeat'?1:0);assert.ok(clears>=1);
+ await controller.stop();
+});
+
+for(const phase of ['initial','heartbeat'])test(`stop cannot restore presence from an in-flight ${phase} read`,async()=>{
+ const scope={instanceId:'i',worldId:'w',generation:'g'};let scheduled,release,reads=0,reports=0;
+ const report={scope,serviceUserId:'service',users:[{id:'service',role:2}]};
+ const session={scope,call:async method=>{
+  if(method==='ping')return true;
+  reads++;
+  if(phase==='heartbeat'&&reads===1)return report;
+  return new Promise(resolve=>release=()=>resolve(report));
+ },close:async()=>{}};
+ const bridge=new BrowserBridge();
+ const controller=startBrowser({bridge,config:{},presence:{record:()=>reports++,clear:()=>{}},connect:async()=>session,
+  setTimer:(fn,ms)=>{scheduled={fn,ms};return 1;},clearTimer:()=>{}});
+ await flush();
+ if(phase==='heartbeat'){assert.equal(reports,1);scheduled.fn();await flush();}
+ const stopping=controller.stop();release();await stopping;await flush();
+ assert.equal(bridge.scope,null);assert.equal(reports,phase==='heartbeat'?1:0);
+});

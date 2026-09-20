@@ -58,27 +58,37 @@ export async function openSession(config,onDisconnect=()=>{}){
 
 export function startBrowser({bridge,config,onStatus=()=>{},connect=openSession,
  presence={record(){},clear(){}},now=Date.now,setTimer=setTimeout,clearTimer=clearTimeout}){
- let stopped=false,timer,session,delay=5000;
+ let stopped=false,timer,session,delay=5000,connectionGeneration=0;
  const schedule=ms=>{if(!stopped)timer=setTimer(run,ms);};
- const disconnected=()=>{bridge.disconnect();presence.clear();};
+ const disconnected=expected=>{
+  if(expected!==undefined&&expected!==connectionGeneration)return false;
+  connectionGeneration++;bridge.disconnect();presence.clear();return true;
+ };
+ const current=(expected,active)=>{
+  if(stopped||expected!==connectionGeneration||session!==active)throw Error('Session invalidated');
+ };
  async function run(){
   if(stopped)return;
+  let active=session,generation=connectionGeneration;
   try{
-   if(session&&bridge.scope){
-    await session.call('ping',[]);
-    presence.record(await session.call('readPresence',[]),session.scope,now());
+   if(active&&bridge.scope){
+    await active.call('ping',[]);current(generation,active);
+    const report=await active.call('readPresence',[]);current(generation,active);
+    presence.record(report,active.scope,now());
     schedule(3000);return;
    }
-   if(session){await session.close();session=null;}
-   session=await connect(config,disconnected);
-   if(stopped){await session.close();return;}
-   presence.record(await session.call('readPresence',[]),session.scope,now());
-   bridge.attach(session);delay=5000;onStatus('connected');schedule(3000);
+   if(active){session=null;await active.close();active=null;}
+   generation=++connectionGeneration;
+   active=await connect(config,()=>disconnected(generation));session=active;
+   current(generation,active);
+   const report=await active.call('readPresence',[]);current(generation,active);
+   presence.record(report,active.scope,now());current(generation,active);
+   bridge.attach(active);delay=5000;onStatus('connected');schedule(3000);
   }catch{
-   disconnected();await session?.close().catch(()=>{});session=null;
-   onStatus('offline');schedule(delay);delay=Math.min(delay*2,60000);
+   disconnected(generation);if(session===active)session=null;await active?.close().catch(()=>{});
+   if(!stopped){onStatus('offline');schedule(delay);delay=Math.min(delay*2,60000);}
   }
  }
  void run();
- return {async stop(){stopped=true;clearTimer(timer);disconnected();await session?.close();}};
+ return {async stop(){stopped=true;clearTimer(timer);disconnected();const active=session;session=null;await active?.close();}};
 }

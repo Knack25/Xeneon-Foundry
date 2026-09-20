@@ -30,6 +30,7 @@ async function acquireActivity(scope){
  await activityRequest('POST',lease);activityLease=lease;
  activityTimer=setInterval(async()=>{
   if(activityLease!==lease)return;
+  if(!$('action-dialog').open){void releaseActivity();return;}
   try{await activityRequest('PUT',lease);}catch{
    if(activityLease===lease){dismissAction();message('Connection changed. Open the action again.');}
   }
@@ -166,6 +167,7 @@ $('sheet-search').oninput=()=>{filterText=$('sheet-search').value;render();};$('
 for(const button of document.querySelectorAll('[data-tab]'))button.onclick=()=>{tab=button.dataset.tab;document.querySelector('nav .active')?.classList.remove('active');button.classList.add('active');render();};
 for(const button of document.querySelectorAll('[data-hp]'))button.onclick=()=>openAction({operation:button.dataset.hp==='temp'?'hp.temp.set':'hp.adjust',input:{},sign:button.dataset.hp==='damage'?-1:1,label:button.dataset.hp==='temp'?'Replace temporary HP':button.dataset.hp==='damage'?'Apply damage':'Heal character'});
 $('cancel').onclick=()=>dismissAction();
+$('action-dialog').addEventListener('close',()=>{dialogAction=null;void releaseActivity();});
 $('action-form').onsubmit=async event=>{
  event.preventDefault();if(busy||!dialogAction)return;const action=dialogAction;
  if(JSON.stringify(action.scope)!==JSON.stringify(state.scope)||action.actorId!==state.selected){dismissAction();message('The selected character or world changed. Open the action again.');return;}

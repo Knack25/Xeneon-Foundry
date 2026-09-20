@@ -5,11 +5,11 @@ import {UpdateSafetyGate} from '../src/safety-gate.js';
 const scope={instanceId:'instance',worldId:'world',generation:'generation'};
 const known=(users=[{id:'service',role:2}],seenScope=scope)=>({state:'known',scope:{...seenScope},serviceUserId:'service',users,receivedAt:0});
 function fixture(){
- const presence={value:{state:'unknown',reason:'not-observed'},snapshot(){return this.value;}};
- const activity={value:[],active(){return this.value;}};
- let unresolved=0;
- const gate=new UpdateSafetyGate({presence,activity,unresolvedRequests:()=>unresolved,quietPeriodMs:300000,makeToken:()=> 'token-1'});
- return {gate,presence,activity,setUnresolved:value=>unresolved=value};
+ let presenceValue={state:'unknown',reason:'not-observed'},activityValue=[],unresolved=0,requestRevision=0;
+ const presence={revision:0,get value(){return presenceValue;},set value(value){presenceValue=value;this.revision++;},snapshot(){return presenceValue;},continuity(){return this.revision;}};
+ const activity={revision:0,get value(){return activityValue;},set value(value){activityValue=value;this.revision++;},active(){return activityValue;},continuity(){return this.revision;}};
+ const gate=new UpdateSafetyGate({presence,activity,unresolvedRequests:()=>unresolved,requestContinuity:()=>requestRevision,quietPeriodMs:300000,makeToken:()=> 'token-1'});
+ return {gate,presence,activity,setUnresolved:value=>{if(value!==unresolved)requestRevision++;unresolved=value;}};
 }
 
 test('service-only presence must remain continuously quiet for five minutes',()=>{
@@ -60,6 +60,14 @@ test('expired activity starts a new quiet interval and clock rollback cannot pre
  assert.deepEqual(gate.status(1500),{phase:'open',eligible:false,quietSince:1500,eligibleAt:301500,blockers:['quiet-period']});
 });
 
+test('blockers that start and finish between evaluations reset the quiet interval',()=>{
+ const f=fixture();f.presence.value=known();f.gate.status(1000);
+ f.presence.value=known([{id:'service',role:2},{id:'player',role:1}]);f.presence.value=known();
+ f.activity.value=[{leaseId:'lease'}];f.activity.value=[];
+ f.setUnresolved(1);f.setUnresolved(0);
+ assert.deepEqual(f.gate.status(301000),{phase:'open',eligible:false,quietSince:301000,eligibleAt:601000,blockers:['quiet-period']});
+});
+
 test('accepted, dispatched and unknown work all block through the same durable count',()=>{
  for(const status of ['accepted','dispatched','unknown']){
   const {gate,presence,setUnresolved}=fixture();presence.value=known();gate.status(1000);setUnresolved(1);
@@ -95,6 +103,23 @@ test('maintenance recheck detects every safety change before commit',()=>{
   assert.throws(()=>f.gate.commitMaintenance(token),{code:'update-not-safe'},name);
   f.gate.releaseMaintenance(token);
  }
+});
+
+test('maintenance is invalidated when the world generation changes after acquisition',()=>{
+ const f=fixture();f.presence.value=known();f.gate.status(1000);const token=f.gate.acquireMaintenance(301000);
+ f.presence.value=known(undefined,{...scope,generation:'new'});
+ assert.deepEqual(f.gate.recheckMaintenance(token,301001),{safe:false,blockers:['quiet-period']});
+ assert.throws(()=>f.gate.commitMaintenance(token,301001),{code:'update-not-safe'});
+});
+
+test('commit synchronously rejects safety changes after a successful recheck',()=>{
+ const f=fixture();f.presence.value=known();f.gate.status(1000);const token=f.gate.acquireMaintenance(301000);
+ assert.deepEqual(f.gate.recheckMaintenance(token,301000),{safe:true,blockers:[]});
+ f.presence.value=known([{id:'service',role:2},{id:'gm',role:4}]);
+ assert.deepEqual(f.gate.status(301001).blockers,['maintenance-active','users-connected']);
+ assert.throws(()=>f.gate.commitMaintenance(token,301001),error=>{
+  assert.equal(error.code,'update-not-safe');assert.deepEqual(error.blockers,['users-connected']);return true;
+ });
 });
 
 test('committed maintenance remains closed and cannot be reopened by the Phase 2 gate',()=>{
