@@ -13,10 +13,11 @@ async function body(request){
  catch{throw failure('invalid-body','Invalid JSON request.');}
 }
 
-function apiHandler({store,bridge,adminSecret,publicUrl,coordinator,localPreview=false,trustedProxies=[]}){
+function apiHandler({store,bridge,adminSecret,publicUrl,coordinator,localPreview=false,trustedProxies=[],foundryUrl}){
  const localUrl=new URL(publicUrl);
  const allowLocal=localPreview&&localUrl.origin==='http://127.0.0.1:8791'&&localUrl.href==='http://127.0.0.1:8791/';
  const auth=new AdminAuth(adminSecret,allowLocal?localUrl.origin:new URL(validateConnectorUrl(publicUrl)).origin);
+ const frameAncestor=foundryUrl?new URL(validateConnectorUrl(foundryUrl)).origin:"'none'";
  async function mapping(value){
   if(!sameScope(value.scope,bridge.scope)||!(await bridge.listPlayers()).some(p=>p.id===value.userId))
    throw failure('invalid-mapping','Select a player in the connected world.');
@@ -27,7 +28,7 @@ function apiHandler({store,bridge,adminSecret,publicUrl,coordinator,localPreview
   const assets={'/admin':['admin.html','text/html'],'/admin/':['admin.html','text/html'],'/admin.js':['admin.js','text/javascript'],'/admin.css':['admin.css','text/css']};
   if(Object.hasOwn(assets,route)&&method==='GET'){
    const [name,type]=assets[route];response.setHeader('Content-Type',type);
-   response.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
+   response.setHeader('Content-Security-Policy',`default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors ${frameAncestor};`);
    response.end(await readFile(new URL('../public/'+name,import.meta.url)));return;
   }
   if(route.startsWith('/v1/')){

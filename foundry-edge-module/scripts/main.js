@@ -1,11 +1,13 @@
 import { createAdapter } from './dnd5e.js';
 import { appendAttribution } from './chat.js';
 import { failure } from './protocol.js';
+import {registerAdminControls} from './admin.js';
 
 const ID = 'foundry-edge';
 export function registerModule({Hooks,game:initialGame,getGame = () => initialGame,makeId = () => crypto.randomUUID()}) {
   Hooks.once('init', () => {
     const game = getGame();
+    registerAdminControls({game,Hooks,ApplicationV2:globalThis.foundry?.applications?.api?.ApplicationV2});
     game.settings.register(ID,'serviceUserId',{name:'Connector service user ID',
       hint:'Use the ID of a dedicated service account. Leave blank to disable the probe API.',
       scope:'world',config:true,type:String,default:'',requiresReload:true});

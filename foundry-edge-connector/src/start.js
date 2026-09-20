@@ -15,7 +15,7 @@ const store=new Store(path.join(dataDir,'connector.sqlite')),bridge=new BrowserB
 const coordinator=new Coordinator({store,bridge});
 const service=startBrowser({bridge,config,onStatus:status=>console.log('Foundry service: '+status)});
 const trustedProxies=(process.env.TRUSTED_PROXY_IPS??'').split(',').map(value=>value.trim()).filter(Boolean);
-const server=createApplication({store,bridge,coordinator,adminSecret,publicUrl,trustedProxies});
+const server=createApplication({store,bridge,coordinator,adminSecret,publicUrl,trustedProxies,foundryUrl:config.url});
 server.listen(8790,'0.0.0.0',()=>console.log('Foundry Edge listening on port 8790.'));
 let closing=false;
 async function stop(){if(closing)return;closing=true;await service.stop();server.close(()=>{store.close();process.exit(0);});}

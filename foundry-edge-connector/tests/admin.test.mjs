@@ -56,3 +56,15 @@ test('pairing is rate limited and errors never contain internal details',async()
   assert.equal((await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:'{"code":"bad"}'})).status,429);
  }finally{await new Promise(r=>server.close(r));store.close();}
 });
+
+test('embedding permits only the configured Foundry origin and never bypasses admin login',async()=>{
+ const store=new Store(':memory:');
+ const server=createServer({store,adminSecret:'x'.repeat(40),publicUrl:'https://edge.example',foundryUrl:'https://foundry.example/world',bridge:{scope}});
+ await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ try{
+  const url=`http://127.0.0.1:${server.address().port}`;
+  const response=await fetch(url+'/admin');
+  assert.match(response.headers.get('content-security-policy'),/frame-ancestors https:\/\/foundry\.example;/);
+  assert.equal((await fetch(url+'/admin/state',{headers:{Origin:'https://foundry.example'}})).status,401);
+ }finally{await new Promise(r=>server.close(r));store.close();}
+});

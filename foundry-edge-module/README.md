@@ -18,6 +18,16 @@ python scripts/package-foundry-probe.py foundry-edge-module/dist dist/foundry-pr
 
 On Linux use `python3`. This packager writes forward-slash archive paths; do not use Windows PowerShell `Compress-Archive` for the Linux deployment because it can produce backslash member names.
 
+## Manage Edges inside Foundry
+
+After enabling or updating the module, refresh your Foundry browser. As a GM, open the Game Settings sidebar and click **Manage Edges**. You can also use **Configure Settings → Foundry Edge → Open Edge administration**.
+
+Set **Connector HTTPS URL** to the connector origin (for this deployment, `https://edge.foundry.jewinashoe.org`). The resizable Foundry window provides the hosted administrator console for generating pairing codes, changing player mappings and revoking devices. Sign in with the separate connector administrator key; it is never saved in Foundry settings. `Manage Hosted Foundry Edges.cmd` in the repository opens the hosted console and displays your local key.
+
+The connector permits embedding only from its configured Foundry origin. If browser cookie restrictions prevent embedded sign-in, use **Open in browser**. The menu and window are GM-only; connector authentication is still enforced separately.
+
+Verified in Xeneon Edge Test on 2026-09-19: native window and sidebar entry, embedded login, code generation, device pairing, revocation, logout and new-tab fallback. The public hostname was resolved explicitly in the test browser because of cached DNS results on the test machine.
+
 ## Test in the service browser console
 
 Read-only inspection (IDs below must be the real test player and character IDs):

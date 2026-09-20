@@ -64,7 +64,7 @@ test('module registers hooks before game exists and resolves game during init', 
     const registered=[];
     globalThis.game={settings:{register:(ns,key)=>registered.push(`${ns}.${key}`)}};
     handlers.get('init')();
-    assert.deepEqual(registered,['foundry-edge.serviceUserId']);
+    assert.deepEqual(registered,['foundry-edge.connectorUrl','foundry-edge.serviceUserId']);
   } finally {
     if(previousHooks===undefined)delete globalThis.Hooks;else globalThis.Hooks=previousHooks;
     if(previousGame===undefined)delete globalThis.game;else globalThis.game=previousGame;
