@@ -11,6 +11,7 @@ export class BrowserBridge {
   return result;
  }
  listPlayers(){return this.call('listPlayers',[]);}
+ readPresence(){return this.call('readPresence',[]);}
  listCharacters(userId){return this.call('listCharacters',[userId]);}
  readCharacter(userId,actorId){return this.call('readCharacter',[userId,actorId]);}
  readPortrait(userId,actorId){return this.call('readPortrait',[userId,actorId]);}

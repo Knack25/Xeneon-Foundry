@@ -39,7 +39,7 @@ export async function openSession(config,onDisconnect=()=>{}){
   page.on('framenavigated',frame=>{if(frame===page.mainFrame())onDisconnect();});
   return {scope,
    async call(method,args){
-    if(!['listPlayers','listCharacters','readCharacter','readPortrait','executeAction','ping'].includes(method))throw Error('Unsupported bridge method');
+    if(!['listPlayers','listCharacters','readCharacter','readPortrait','readPresence','executeAction','ping'].includes(method))throw Error('Unsupported bridge method');
     const reply=await page.evaluate(async({method,args,worldId,userId,generation})=>{
      if(!game.ready||!game.socket.connected||game.world.id!==worldId||game.user.id!==userId)throw Error('Service disconnected');
      const api=game.modules.get('foundry-edge')?.api;if(api?.scope.generation!==generation)throw Error('Generation changed');
@@ -56,23 +56,29 @@ export async function openSession(config,onDisconnect=()=>{}){
  }catch(error){socket?.close();await browser?.close();await http.dispose();throw error;}
 }
 
-export function startBrowser({bridge,config,onStatus=()=>{},connect=openSession}){
+export function startBrowser({bridge,config,onStatus=()=>{},connect=openSession,
+ presence={record(){},clear(){}},now=Date.now,setTimer=setTimeout,clearTimer=clearTimeout}){
  let stopped=false,timer,session,delay=5000;
- const schedule=ms=>{if(!stopped)timer=setTimeout(run,ms);};
- const disconnected=()=>{bridge.disconnect();};
+ const schedule=ms=>{if(!stopped)timer=setTimer(run,ms);};
+ const disconnected=()=>{bridge.disconnect();presence.clear();};
  async function run(){
   if(stopped)return;
   try{
-   if(session&&bridge.scope){await session.call('ping',[]);schedule(3000);return;}
+   if(session&&bridge.scope){
+    await session.call('ping',[]);
+    presence.record(await session.call('readPresence',[]),session.scope,now());
+    schedule(3000);return;
+   }
    if(session){await session.close();session=null;}
    session=await connect(config,disconnected);
    if(stopped){await session.close();return;}
+   presence.record(await session.call('readPresence',[]),session.scope,now());
    bridge.attach(session);delay=5000;onStatus('connected');schedule(3000);
   }catch{
-   bridge.disconnect();await session?.close().catch(()=>{});session=null;
+   disconnected();await session?.close().catch(()=>{});session=null;
    onStatus('offline');schedule(delay);delay=Math.min(delay*2,60000);
   }
  }
  void run();
- return {async stop(){stopped=true;clearTimeout(timer);bridge.disconnect();await session?.close();}};
+ return {async stop(){stopped=true;clearTimer(timer);disconnected();await session?.close();}};
 }
